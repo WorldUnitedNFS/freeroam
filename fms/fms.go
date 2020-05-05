@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
-	"gitlab.com/sparkserver/freeroam/internal"
+	"gitlab.com/sparkserver/freeroam"
 )
 
 type PlayerInfo struct {
@@ -21,7 +21,7 @@ type PlayerInfo struct {
 	Y    int    `json:"y"`
 }
 
-func NewMapServer(i *internal.Instance) *MapServer {
+func NewMapServer(i *freeroam.Instance) *MapServer {
 	return &MapServer{
 		i:        i,
 		conns:    make(map[string]*websocket.Conn, 0),
@@ -31,7 +31,7 @@ func NewMapServer(i *internal.Instance) *MapServer {
 
 type MapServer struct {
 	sync.Mutex
-	i        *internal.Instance
+	i        *freeroam.Instance
 	conns    map[string]*websocket.Conn
 	upgrader websocket.Upgrader
 }

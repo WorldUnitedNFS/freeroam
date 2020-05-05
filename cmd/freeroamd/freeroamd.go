@@ -7,7 +7,6 @@ package main
 import (
 	"encoding/json"
 	"flag"
-	"io/ioutil"
 	"log"
 	"math"
 	"net/http"
@@ -17,15 +16,14 @@ import (
 	"runtime/debug"
 	"time"
 
-	"gitlab.com/sparkserver/freeroam/internal"
-	"gitlab.com/sparkserver/freeroam/internal/fms"
+	"gitlab.com/sparkserver/freeroam"
+	"gitlab.com/sparkserver/freeroam/fms"
 )
 
 var (
-	listenAddr   string
-	debugAddr    string
-	mapAddr      string
-	mapServeHTML bool
+	listenAddr string
+	debugAddr  string
+	mapAddr    string
 )
 
 func main() {
@@ -33,10 +31,9 @@ func main() {
 	flag.StringVar(&listenAddr, "l", ":9999", "Address to listen to (shorthand)")
 	flag.StringVar(&debugAddr, "debug", "localhost:6060", "Address for debug endpoint to listen to")
 	flag.StringVar(&mapAddr, "map", "", "Address for map server to listen to")
-	flag.BoolVar(&mapServeHTML, "maphtml", false, "Serve fmsmap.html")
 	flag.Parse()
 
-	i := internal.NewInstance()
+	i := freeroam.NewInstance()
 	log.Printf("Starting server on %v", listenAddr)
 	go i.Listen(listenAddr)
 
@@ -79,23 +76,11 @@ func main() {
 	})
 	go http.ListenAndServe(debugAddr, debugMux)
 
-	// resBox := packr.NewBox("./resources")
-
 	if mapAddr != "" {
 		mapSrv := fms.NewMapServer(i)
 
 		fmsMux := http.NewServeMux()
 		fmsMux.HandleFunc("/ws", mapSrv.Handle)
-		if mapServeHTML {
-			fmsMux.HandleFunc("/map.png", func(w http.ResponseWriter, r *http.Request) {
-				http.ServeFile(w, r, "./fmsmap.png")
-			})
-			fmsMux.HandleFunc("/map.html", func(w http.ResponseWriter, r *http.Request) {
-				w.Header().Set("Content-Type", "text/html")
-				b, _ := ioutil.ReadFile("./fmsmap.html")
-				w.Write(b)
-			})
-		}
 
 		go mapSrv.Run()
 		err := http.ListenAndServe(mapAddr, fmsMux)
