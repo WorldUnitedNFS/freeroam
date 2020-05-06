@@ -12,7 +12,7 @@ import (
 type CarPosPacket struct {
 	time   uint16
 	packet []byte
-	pos    Vector2D
+	pos    Vector
 	lastY  float64
 	lastX  float64
 }
@@ -21,7 +21,7 @@ func (p *CarPosPacket) Valid() bool {
 	return p.packet != nil
 }
 
-func (p *CarPosPacket) Pos() Vector2D {
+func (p *CarPosPacket) Pos() Vector {
 	return p.pos
 }
 

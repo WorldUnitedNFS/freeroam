@@ -200,7 +200,7 @@ func (self *Client) getClosestPlayers(clients []*Client) []*Client {
 		if !client.IsOk() || client.Addr == self.Addr {
 			continue
 		}
-		distance := self.GetPos().Sub(client.GetPos()).Abs().Length()
+		distance := Distance(self.GetPos(), client.GetPos())
 		closePlayers = append(closePlayers, clientPosSortInfo{
 			Length: int(distance),
 			Client: client,
@@ -313,7 +313,7 @@ func (c *Client) sendPlayerSlots() {
 	c.buffers.Put(buf)
 }
 
-func (c Client) GetPos() Vector2D {
+func (c Client) GetPos() Vector {
 	return c.carPos.Pos()
 }
 
