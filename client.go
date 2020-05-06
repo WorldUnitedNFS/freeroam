@@ -44,17 +44,13 @@ type ClientConfig struct {
 }
 
 func newClient(opts ClientConfig) *Client {
-	slots := make(map[int]*slotInfo)
-	for i := 0; i < 14; i++ {
-		slots[i] = nil
-	}
 	c := &Client{
 		Addr:            opts.Addr,
 		conn:            opts.Conn,
 		startTime:       time.Now(),
 		cliTime:         binary.BigEndian.Uint16(opts.CliTime),
 		seq:             0,
-		Slots:           slots,
+		slots:           make([]*slotInfo, 14),
 		LastPacket:      time.Now(),
 		clients:         opts.Clients,
 		allowedPersonas: opts.AllowedPersonas,
@@ -73,7 +69,7 @@ type Client struct {
 	carPos          CarPosPacket
 	chanInfo        []byte
 	playerInfo      []byte
-	Slots           map[int]*slotInfo
+	slots           []*slotInfo
 	LastPacket      time.Time
 	Ping            int
 	PersonaName     string
@@ -116,6 +112,7 @@ func (c *Client) replyHandshake() {
 	c.buffers.Put(buf)
 }
 
+// Active returns true if the client has communicated with the server lately.
 func (c Client) Active() bool {
 	return time.Now().Sub(c.LastPacket).Seconds() < 5
 }
@@ -131,8 +128,7 @@ func (c *Client) processPacket(packet []byte) {
 	}()
 	c.LastPacket = time.Now()
 	srvCounter := binary.BigEndian.Uint16(packet[8:10])
-	for i := 0; i < 14; i++ {
-		slot := c.Slots[i]
+	for _, slot := range c.slots {
 		if slot != nil && !slot.UpdateACKed {
 			if srvCounter == slot.PacketSentSeq {
 				slot.UpdateACKed = true
@@ -177,7 +173,7 @@ func (c *Client) processPacket(packet []byte) {
 			c.PersonaName = string(nameField[:cStrLen(nameField)])
 			updated = true
 		case 0x12:
-			if c.IsOk() && !bytes.Equal(innerData[2:], c.carPos.packet[2:]) {
+			if c.IsReady() && !bytes.Equal(innerData[2:], c.carPos.packet[2:]) {
 				updated = true
 			}
 			c.carPos.Update(innerData)
@@ -186,7 +182,7 @@ func (c *Client) processPacket(packet []byte) {
 			c.Ping = int(c.getTimeDiff() - iTime)
 		}
 	}
-	if c.IsOk() {
+	if c.IsReady() {
 		if updated {
 			c.registerUpdate()
 		}
@@ -197,7 +193,7 @@ func (c *Client) processPacket(packet []byte) {
 func (self *Client) getClosestPlayers(clients []*Client) []*Client {
 	closePlayers := make([]clientPosSortInfo, 0)
 	for _, client := range clients {
-		if !client.IsOk() || client.Addr == self.Addr {
+		if !client.IsReady() || client.Addr == self.Addr {
 			continue
 		}
 		distance := Distance(self.GetPos(), client.GetPos())
@@ -216,28 +212,28 @@ func (self *Client) getClosestPlayers(clients []*Client) []*Client {
 
 func (self *Client) removeSlot(client *Client) {
 	index := func() int {
-		for i, c := range self.Slots {
+		for i, c := range self.slots {
 			if c != nil && c.Client == client {
 				return i
 			}
 		}
 		return -1
 	}()
-	self.Slots[index] = nil
+	self.slots[index] = nil
 }
 
 func (self *Client) addSlot(client *Client) {
-	index := func() int {
-		suitableSlots := make([]int, 0)
-		for i, c := range self.Slots {
-			if c == nil {
-				suitableSlots = append(suitableSlots, i)
-			}
+	index := -1
+	for i, c := range self.slots {
+		if c == nil {
+			index = i
+			break
 		}
-		sort.Ints(suitableSlots)
-		return suitableSlots[0]
-	}()
-	self.Slots[index] = &slotInfo{
+	}
+	if index == -1 {
+		panic("addSlot: tried to add client with all slots full")
+	}
+	self.slots[index] = &slotInfo{
 		Client: client,
 	}
 }
@@ -245,7 +241,7 @@ func (self *Client) addSlot(client *Client) {
 func (self *Client) recalculateSlots(clients []*Client) {
 	players := self.getClosestPlayers(clients)
 	oldPlayers := make([]*Client, 0)
-	for _, v := range self.Slots {
+	for _, v := range self.slots {
 		if v != nil {
 			oldPlayers = append(oldPlayers, v.Client)
 		}
@@ -279,8 +275,7 @@ func (c *Client) sendPlayerSlots() {
 	binary.Write(buf, binary.BigEndian, seq)
 	buf.Write([]byte{0xff, 0xff, 0x00})
 	fullsSent := 0
-	for i := 0; i < 14; i++ {
-		slot := c.Slots[i]
+	for _, slot := range c.slots {
 		if slot == nil {
 			buf.Write([]byte{0xff, 0xff})
 		} else {
@@ -313,37 +308,33 @@ func (c *Client) sendPlayerSlots() {
 	c.buffers.Put(buf)
 }
 
+// GetPos returns the current position of the client.
 func (c Client) GetPos() Vector {
 	return c.carPos.Pos()
 }
 
+// SendRawPacket sends a raw UDP packet to the client.
 func (c *Client) SendRawPacket(b []byte) error {
 	_, err := c.conn.WriteToUDP(b, c.Addr)
 	return err
 }
 
-func (c Client) IsOk() bool {
+// IsReady returns true if the client is ready to be broadcasted to other clients.
+// This means that the server has valid channel info, player info and position data of the client.
+func (c Client) IsReady() bool {
 	return c.chanInfo != nil && c.playerInfo != nil && c.carPos.Valid()
 }
 
 func (c Client) writeFullPosPacket(buf *bytes.Buffer, time uint16) {
-	buf.WriteByte(0x00)                       // Slot start
-	buf.WriteByte(0x12)                       // Type
-	buf.WriteByte(byte(len(c.carPos.packet))) // Size
-	buf.Write(c.carPos.Packet(time))
+	buf.WriteByte(0x00) // Slot start
+	WriteSubpacket(buf, 0x12, c.carPos.Packet(time))
 	buf.WriteByte(0xff) // Slot end
 }
 
 func (c Client) writeFullSlotPacket(buf *bytes.Buffer, time uint16) {
 	buf.WriteByte(0x00) // Slot start
-	buf.WriteByte(0x00) // Type
-	buf.WriteByte(0x22) // Size
-	buf.Write(c.chanInfo)
-	buf.WriteByte(0x01) // Type
-	buf.WriteByte(0x41) // Size
-	buf.Write(c.playerInfo)
-	buf.WriteByte(0x12)                       // Type
-	buf.WriteByte(byte(len(c.carPos.packet))) // Size
-	buf.Write(c.carPos.Packet(time))
+	WriteSubpacket(buf, 0x00, c.chanInfo)
+	WriteSubpacket(buf, 0x01, c.playerInfo)
+	WriteSubpacket(buf, 0x12, c.carPos.Packet(time))
 	buf.WriteByte(0xff) // Slot end
 }

@@ -5,34 +5,44 @@
 package freeroam
 
 import (
+	"bytes"
 	"encoding/binary"
-	"fmt"
 )
+
+// WriteSubpacket writes a subpacket with specified type and payload to a bytes.Buffer
+func WriteSubpacket(buf *bytes.Buffer, typ uint8, data []byte) {
+	if len(data) > 255 {
+		panic("WriteSubpacket: subpacket length exceeds 255")
+	}
+	buf.WriteByte(typ)
+	buf.WriteByte(uint8(len(data)))
+	buf.Write(data)
+}
 
 type CarPosPacket struct {
 	time   uint16
 	packet []byte
 	pos    Vector
-	lastY  float64
-	lastX  float64
 }
 
+// Valid returns true if CarPosPacket contains valid packet data.
 func (p *CarPosPacket) Valid() bool {
 	return p.packet != nil
 }
 
+// Pos returns the car position as a Vector.
 func (p *CarPosPacket) Pos() Vector {
 	return p.pos
 }
 
-func (p *CarPosPacket) Packet(timei uint16) []byte {
-	time := make([]byte, 2)
-	binary.BigEndian.PutUint16(time, timei)
-	p.packet[0] = time[0]
-	p.packet[1] = time[1]
+// Packet returns the packet data with the packet time replaced by the argument.
+func (p *CarPosPacket) Packet(time uint16) []byte {
+	binary.BigEndian.PutUint16(p.packet, time)
 	return p.packet
 }
 
+// Update updates CarPosPacket with the specified byte slice.
+// The supplied slice shouldn't be modified after calling this method.
 func (p *CarPosPacket) Update(packet []byte) {
 	p.time = binary.BigEndian.Uint16(packet[0:2])
 	p.packet = packet
@@ -64,13 +74,6 @@ func (p *CarPosPacket) getY() float64 {
 	} else {
 		f = 5000 - nv
 	}
-	if nv != p.lastY {
-		printBinary(p.packet[2:])
-		fmt.Printf("Y: %v (shift: %v)\n", f, shift)
-		//printBinary(p.packet[3:10])
-		//fmt.Printf("s%v %v\n", shift, f)
-		p.lastY = nv
-	}
 	return f
 }
 
@@ -83,36 +86,14 @@ func (p *CarPosPacket) getX() float64 {
 	} else {
 		shift = 6
 	}
-	var c int
 	nv := float64(binary.BigEndian.Uint32([]byte{0x00, out[0], out[1], out[2]}) >> shift)
 	i := nv / 8.332
 	if shift == 5 {
-		c = 0
 		i -= 3730
 	} else if p.packet[3] >= 8 || p.packet[3] == 7 && p.packet[4] >= 128 {
-		c = 1
+		//
 	} else {
-		c = 2
 		i += 4135
 	}
-	_ = c
-	if nv != p.lastX {
-		//printBinary(p.packet[3:10])
-		//fmt.Printf("sh%v c%v %v -> %v (%v)\n", shift, c, nv, math.Round(i*10)/10, p.lastX-nv)
-		p.lastX = nv
-	}
 	return i
-}
-
-func (p *CarPosPacket) isLowY() bool {
-	yHeader := binary.BigEndian.Uint16(p.packet[3:5])
-	return int16(yHeader) <= 1941
-}
-
-func bitMask(n int) uint32 {
-	out := 0x00
-	for i := 0; i < n; i++ {
-		out = out | (0x01 << uint(i))
-	}
-	return uint32(out)
 }

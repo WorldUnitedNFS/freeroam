@@ -21,19 +21,21 @@ type PlayerInfo struct {
 	Y    int    `json:"y"`
 }
 
-func NewMapServer(i *freeroam.Instance) *MapServer {
+func NewMapServer(i *freeroam.Server) *MapServer {
 	return &MapServer{
 		i:        i,
 		conns:    make(map[string]*websocket.Conn, 0),
 		upgrader: websocket.Upgrader{},
+		players:  make([]PlayerInfo, 0),
 	}
 }
 
 type MapServer struct {
 	sync.Mutex
-	i        *freeroam.Instance
+	i        *freeroam.Server
 	conns    map[string]*websocket.Conn
 	upgrader websocket.Upgrader
+	players  []PlayerInfo
 }
 
 func (s *MapServer) Handle(w http.ResponseWriter, r *http.Request) {
@@ -62,9 +64,9 @@ func (s *MapServer) SendPlayers() {
 	}
 
 	s.i.Lock()
-	players := make([]PlayerInfo, 0)
+	players := s.players[:0]
 	for _, c := range s.i.Clients {
-		if c.IsOk() {
+		if c.IsReady() {
 			pos := c.GetPos()
 			players = append(players, PlayerInfo{
 				Name: c.PersonaName,

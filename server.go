@@ -6,51 +6,50 @@ package freeroam
 
 import (
 	"bytes"
-	"fmt"
+	"log"
 	"net"
 	"sync"
 	"time"
 )
 
-func NewInstance() *Instance {
-	return &Instance{
+func NewServer() *Server {
+	return &Server{
 		Clients: make(map[string]*Client),
-		udpbuf:  make([]byte, 1024),
+		recvbuf: make([]byte, 1024),
 		buffers: &sync.Pool{
 			New: func() interface{} { return new(bytes.Buffer) },
 		},
 	}
 }
 
-type Instance struct {
+type Server struct {
 	sync.Mutex
 	listener *net.UDPConn
 	Clients  map[string]*Client
-	udpbuf   []byte
+	recvbuf  []byte
 	buffers  *sync.Pool
 }
 
-func (i *Instance) Listen(addrStr string) error {
+func (i *Server) Listen(addrStr string) error {
 	addr, err := net.ResolveUDPAddr("udp", addrStr)
 	if err != nil {
 		return err
 	}
-	listener, err := net.ListenUDP("udp", addr)
+	i.listener, err = net.ListenUDP("udp", addr)
 	if err != nil {
 		return err
 	}
-	i.listener = listener
 	go i.RunTimer()
 	i.RunPacketRead()
 	return nil
 }
 
-func (i *Instance) RunPacketRead() {
+func (i *Server) RunPacketRead() {
 	for {
 		addr, data := i.readPacket()
 		i.Lock()
 		if len(data) == 58 && data[2] == 0x06 {
-			fmt.Printf("New client from %v\n", addr.String())
+			log.Printf("New client from %v", addr.String())
 			client := newClient(ClientConfig{
 				CliTime: data[52:54],
 				Addr:    addr,
@@ -71,22 +70,21 @@ func (i *Instance) RunPacketRead() {
 	}
 }
 
-func (i *Instance) RunTimer() {
-	timer := time.Tick(1 * time.Second)
+func (i *Server) RunTimer() {
 	for {
 		i.Lock()
 		for k, client := range i.Clients {
 			if !client.Active() {
-				fmt.Printf("Removing inactive client %v\n", client.Addr.String())
+				log.Printf("Removing inactive client %v", client.Addr.String())
 				delete(i.Clients, k)
 			}
 		}
 		i.Unlock()
-		<-timer
+		time.Sleep(1 * time.Second)
 	}
 }
 
-func (i *Instance) readPacket() (*net.UDPAddr, []byte) {
-	len, addr, _ := i.listener.ReadFromUDP(i.udpbuf)
-	return addr, i.udpbuf[:len]
+func (i *Server) readPacket() (*net.UDPAddr, []byte) {
+	len, addr, _ := i.listener.ReadFromUDP(i.recvbuf)
+	return addr, i.recvbuf[:len]
 }
