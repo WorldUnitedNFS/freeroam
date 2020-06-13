@@ -247,11 +247,15 @@ func (self *Client) recalculateSlots(clients []*Client) {
 		}
 	}
 	diff := ArrayDiff(oldPlayers, players)
-	for _, c := range diff.Removed {
-		self.removeSlot(c)
-	}
-	for _, c := range diff.Added {
-		self.addSlot(c)
+
+	if len(diff.Removed) > 0 {
+		for _, c := range diff.Removed {
+			self.removeSlot(c)
+		}
+	} else if len(diff.Added) > 0 {
+		for _, c := range diff.Added {
+			self.addSlot(c)
+		}
 	}
 }
 
