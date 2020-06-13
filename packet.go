@@ -44,12 +44,15 @@ func (p *CarPosPacket) Packet(time uint16) []byte {
 // Update updates CarPosPacket with the specified byte slice.
 // The supplied slice shouldn't be modified after calling this method.
 func (p *CarPosPacket) Update(packet []byte) {
-	p.time = binary.BigEndian.Uint16(packet[0:2])
-	p.packet = packet
-	flying := (packet[2] >> 3) & 1
-	if flying == 1 {
-		p.pos.X = p.getX()
-		p.pos.Y = p.getY()
+	pktTime := binary.BigEndian.Uint16(packet[0:2])
+	if pktTime > p.time {
+		p.time = pktTime
+		p.packet = packet
+		flying := (packet[2] >> 3) & 1
+		if flying == 1 {
+			p.pos.X = p.getX()
+			p.pos.Y = p.getY()
+		}
 	}
 }
 
