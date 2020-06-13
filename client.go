@@ -294,23 +294,23 @@ func (c *Client) sendPlayerSlots() {
 		if slot == nil {
 			buf.Write([]byte{0xff, 0xff})
 		} else {
-			time := uint16(int(c.getTimeDiff()) - (int(slot.Client.getTimeDiff()) - int(slot.Client.posRecvTD)))
+			pktTime := uint16(int(c.getTimeDiff()) - /*(int(slot.Client.getTimeDiff()) - int(slot.Client.posRecvTD))*/ (int(slot.Client.Ping) - int(c.Ping)))
 			if slot.HasSentFull && slot.Client.posRecvTD == slot.LastCPTime {
 				buf.Write([]byte{0x00, 0xff})
 			} else if fullsSent >= 3 {
-				slot.Client.writeFullPosPacket(buf, time)
+				slot.Client.writeFullPosPacket(buf, pktTime)
 				slot.LastCPTime = slot.Client.posRecvTD
 			} else if !slot.HasSentFull {
-				slot.Client.writeFullSlotPacket(buf, time)
+				slot.Client.writeFullSlotPacket(buf, pktTime)
 				slot.HasSentFull = true
 				slot.PacketSentSeq = seq
 				slot.LastCPTime = slot.Client.posRecvTD
 				fullsSent++
 			} else if slot.UpdateACKed || slot.ACKMissedCount < 5 {
-				slot.Client.writeFullPosPacket(buf, time)
+				slot.Client.writeFullPosPacket(buf, pktTime)
 				slot.LastCPTime = slot.Client.posRecvTD
 			} else {
-				slot.Client.writeFullSlotPacket(buf, time)
+				slot.Client.writeFullSlotPacket(buf, pktTime)
 				slot.ACKMissedCount = 0
 				slot.PacketSentSeq = seq
 				slot.LastCPTime = slot.Client.posRecvTD
