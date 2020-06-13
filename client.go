@@ -248,6 +248,9 @@ func (self *Client) recalculateSlots(clients []*Client) {
 	}
 	diff := ArrayDiff(oldPlayers, players)
 
+	// Adding and removing slots at the same time causes some weird things to happen.
+	// As a temporary workaround, only one section of the diff is handled at a time.
+	// This allows the game to remove old players BEFORE swapping in new ones.
 	if len(diff.Removed) > 0 {
 		for _, c := range diff.Removed {
 			self.removeSlot(c)
