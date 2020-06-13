@@ -71,6 +71,7 @@ type Client struct {
 	playerInfo      []byte
 	slots           []*slotInfo
 	LastPacket      time.Time
+	LastPacketSeq   uint16
 	Ping            int
 	PersonaName     string
 	allowedPersonas []int
@@ -127,6 +128,10 @@ func (c *Client) processPacket(packet []byte) {
 		}
 	}()
 	c.LastPacket = time.Now()
+	pktSeq := binary.BigEndian.Uint16(packet[0:2])
+	if pktSeq == 65535 {
+		c.LastPacketSeq = 0
+	}
 	srvCounter := binary.BigEndian.Uint16(packet[8:10])
 	for _, slot := range c.slots {
 		if slot != nil && !slot.UpdateACKed {
@@ -173,13 +178,15 @@ func (c *Client) processPacket(packet []byte) {
 			c.PersonaName = string(nameField[:cStrLen(nameField)])
 			updated = true
 		case 0x12:
-			if c.IsReady() && !bytes.Equal(innerData[2:], c.carPos.packet[2:]) {
-				updated = true
+			if pktSeq >= c.LastPacketSeq {
+				if c.IsReady() && !bytes.Equal(innerData[2:], c.carPos.packet[2:]) {
+					updated = true
+				}
+				c.carPos.Update(innerData)
+				iTime := binary.BigEndian.Uint16(innerData[0:2])
+				c.posRecvTD = c.getTimeDiff()
+				c.Ping = int(c.getTimeDiff() - iTime)
 			}
-			c.carPos.Update(innerData)
-			iTime := binary.BigEndian.Uint16(innerData[0:2])
-			c.posRecvTD = c.getTimeDiff()
-			c.Ping = int(c.getTimeDiff() - iTime)
 		}
 	}
 	if c.IsReady() {
@@ -188,6 +195,7 @@ func (c *Client) processPacket(packet []byte) {
 		}
 		c.sendPlayerSlots()
 	}
+	c.LastPacketSeq = pktSeq
 }
 
 func (self *Client) getClosestPlayers(clients []*Client) []*Client {
