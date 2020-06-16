@@ -46,9 +46,9 @@ func (p *CarPosPacket) Packet(time uint16) []byte {
 func (p *CarPosPacket) Update(packet []byte) {
 	p.time = binary.BigEndian.Uint16(packet[0:2])
 	p.packet = packet
-	flying := (packet[2] >> 3) & 1
+	ground := (packet[2] >> 3) & 1
 	reader := NewPacketReader(packet)
-	if flying == 1 {
+	if ground == 1 {
 		err := reader.ReadInitialBits()
 
 		if err != nil {
