@@ -294,7 +294,7 @@ func (c *Client) sendPlayerSlots() {
 		if slot == nil {
 			buf.Write([]byte{0xff, 0xff})
 		} else {
-			pktTime := uint16(int(c.getTimeDiff()) - /*(int(slot.Client.getTimeDiff()) - int(slot.Client.posRecvTD))*/ (int(slot.Client.Ping) - int(c.Ping)))
+			pktTime := uint16(int(c.getTimeDiff()) - c.Ping - slot.Client.Ping)
 			if slot.HasSentFull && slot.Client.posRecvTD == slot.LastCPTime {
 				buf.Write([]byte{0x00, 0xff})
 			} else if fullsSent >= 3 {
