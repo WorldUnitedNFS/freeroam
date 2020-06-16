@@ -47,53 +47,38 @@ func (p *CarPosPacket) Update(packet []byte) {
 	p.time = binary.BigEndian.Uint16(packet[0:2])
 	p.packet = packet
 	flying := (packet[2] >> 3) & 1
+	reader := NewPacketReader(packet)
 	if flying == 1 {
-		p.pos.X = p.getX()
-		p.pos.Y = p.getY()
-	}
-}
+		err := reader.ReadInitialBits()
 
-func clone(a []byte) []byte {
-	out := make([]byte, len(a))
-	copy(out, a)
-	return out
-}
+		if err != nil {
+			return
+		}
 
-func (p *CarPosPacket) getY() float64 {
-	out := clone(p.packet[3:6])
-	var shift uint
-	if out[0] >= 7 {
-		shift = 2
-	} else {
-		shift = 3
-	}
-	nv := float64(binary.BigEndian.Uint32([]byte{0x00, out[0], out[1], out[2]})>>shift) / 25
-	var f float64
-	if out[0] >= 7 {
-		f = 5000 - nv + 2378.6
-	} else {
-		f = 5000 - nv
-	}
-	return f
-}
+		y, err := reader.DecodeYCoordinate()
 
-func (p *CarPosPacket) getX() float64 {
-	out := clone(p.packet[7:10])
-	var shift uint
-	out[0] = out[0] & 0x3f
-	if p.packet[7]&32 > 0 {
-		shift = 5
-	} else {
-		shift = 6
+		if err != nil {
+			return
+		}
+
+		// Ignore Z coordinate for now
+		_, err = reader.DecodeZCoordinate()
+
+		if err != nil {
+			return
+		}
+
+		x, err := reader.DecodeXCoordinate()
+
+		if err != nil {
+			return
+		}
+
+		//if p.pos.X != x || p.pos.Y != y {
+		//	fmt.Printf("player is at (%f, %f)\n", x, y)
+		//}
+
+		p.pos.X = x
+		p.pos.Y = y
 	}
-	nv := float64(binary.BigEndian.Uint32([]byte{0x00, out[0], out[1], out[2]}) >> shift)
-	i := nv / 8.332
-	if shift == 5 {
-		i -= 3730
-	} else if p.packet[3] >= 8 || p.packet[3] == 7 && p.packet[4] >= 128 {
-		//
-	} else {
-		i += 4135
-	}
-	return i
 }
