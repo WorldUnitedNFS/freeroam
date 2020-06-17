@@ -7,6 +7,8 @@ package freeroam
 import (
 	"bytes"
 	"encoding/binary"
+	"fmt"
+	"gitlab.com/sparkserver/freeroam/carstate"
 )
 
 // WriteSubpacket writes a subpacket with specified type and payload to a bytes.Buffer
@@ -46,39 +48,16 @@ func (p *CarPosPacket) Packet(time uint16) []byte {
 func (p *CarPosPacket) Update(packet []byte) {
 	p.time = binary.BigEndian.Uint16(packet[0:2])
 	p.packet = packet
-	ground := (packet[2] >> 3) & 1
-	reader := NewPacketReader(packet)
-	if ground == 1 {
-		err := reader.ReadInitialBits()
+	//ground := (packet[2] >> 3) & 1
+	reader := carstate.NewPacketReader(packet)
+	decodedPacket, err := reader.Decode()
 
-		if err != nil {
-			return
-		}
-
-		y, err := reader.DecodeYCoordinate()
-
-		if err != nil {
-			return
-		}
-
-		// Ignore Z coordinate for now
-		_, err = reader.DecodeZCoordinate()
-
-		if err != nil {
-			return
-		}
-
-		x, err := reader.DecodeXCoordinate()
-
-		if err != nil {
-			return
-		}
-
-		//if p.pos.X != x || p.pos.Y != y {
-		//	fmt.Printf("player is at (%f, %f)\n", x, y)
-		//}
-
-		p.pos.X = x
-		p.pos.Y = y
+	if err != nil {
+		panic(err)
 	}
+
+	fmt.Printf("coordinates: (%f, %f, %f)\n", decodedPacket.XPos(), decodedPacket.YPos(), decodedPacket.ZPos())
+
+	p.pos.X = decodedPacket.XPos()
+	p.pos.Y = decodedPacket.YPos()
 }
