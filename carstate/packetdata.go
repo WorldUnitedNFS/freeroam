@@ -93,3 +93,15 @@ func (packetReader *PacketReader) DecodeFloat(numBits int, maxValue uint64, addV
 	rawBitsFloat := float64(rawBits)
 	return (rawBitsFloat+addValue1)*multiplyValue1 + addValue2, nil
 }
+
+func (packetReader *PacketReader) NullRead() error {
+	_, err := packetReader.BitReader.ReadBits(0)
+
+	if err != nil {
+		return err
+	}
+
+	_ = packetReader.BitReader.HasDataLeft()
+
+	return nil
+}

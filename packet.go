@@ -7,7 +7,6 @@ package freeroam
 import (
 	"bytes"
 	"encoding/binary"
-	"fmt"
 	"gitlab.com/sparkserver/freeroam/carstate"
 )
 
@@ -55,8 +54,6 @@ func (p *CarPosPacket) Update(packet []byte) {
 	if err != nil {
 		panic(err)
 	}
-
-	fmt.Printf("coordinates: (%f, %f, %f)\n", decodedPacket.XPos(), decodedPacket.YPos(), decodedPacket.ZPos())
 
 	p.pos.X = decodedPacket.XPos()
 	p.pos.Y = decodedPacket.YPos()
