@@ -1,18 +1,25 @@
 package carstate
 
-import "fmt"
+import (
+	"gitlab.com/sparkserver/freeroam/math"
+)
 
 type GroundPacket struct {
-	simTime uint16
-	posX    float64
-	posY    float64
-	posZ    float64
+	PacketStruct
+
+	FrontWheelsDirection float64
+	RearWheelsDirection  float64
+	ActiveEffectFlags    uint32
+	orientationX         float64
+	orientationY         float64
+	orientationZ         float64
+	orientationW         float64
 }
 
 func NewGroundPacket(simTime uint16) GroundPacket {
-	return GroundPacket{
-		simTime: simTime,
-	}
+	pkt := GroundPacket{}
+	pkt.simTime = simTime
+	return pkt
 }
 
 func (g GroundPacket) SimTime() uint16 {
@@ -23,16 +30,37 @@ func (g GroundPacket) OnGround() bool {
 	return true
 }
 
-func (g GroundPacket) XPos() float64 {
-	return g.posX
+func (g GroundPacket) Coordinates() math.Vector3D {
+	return math.Vector3D{
+		X: g.posX,
+		Y: g.posY,
+		Z: g.posZ,
+	}
 }
 
-func (g GroundPacket) YPos() float64 {
-	return g.posY
+func (g GroundPacket) LinearVelocity() math.Vector3D {
+	return math.Vector3D{
+		X: g.linVelX,
+		Y: g.linVelY,
+		Z: g.linVelZ,
+	}
 }
 
-func (g GroundPacket) ZPos() float64 {
-	return g.posZ
+func (g GroundPacket) AngularVelocity() math.Vector3D {
+	return math.Vector3D{
+		X: g.angVelX,
+		Y: g.angVelY,
+		Z: g.angVelZ,
+	}
+}
+
+func (g GroundPacket) Orientation() math.Quaternion {
+	return math.Quaternion{
+		X: g.orientationX,
+		Y: g.orientationY,
+		Z: g.orientationZ,
+		W: g.orientationW,
+	}
 }
 
 func (g *GroundPacket) Decode(reader *PacketReader) error {
@@ -40,7 +68,6 @@ func (g *GroundPacket) Decode(reader *PacketReader) error {
 	if err != nil {
 		return err
 	}
-	posY *= -1
 
 	posZ, err := reader.DecodeFloat(11, 96, 0.5, 0.12774999, -112)
 
@@ -53,10 +80,6 @@ func (g *GroundPacket) Decode(reader *PacketReader) error {
 	if err != nil {
 		return err
 	}
-
-	g.posX = posX
-	g.posY = posY
-	g.posZ = posZ
 
 	// 007ECB61
 	linVelY, err := reader.DecodeFloat(14, 0x31E0, 0.5, 0.016666668, -166.66667)
@@ -148,13 +171,22 @@ func (g *GroundPacket) Decode(reader *PacketReader) error {
 		return err
 	}
 
-	fmt.Println("decoded ground packet")
-	fmt.Printf("\tCoordinates          = (%f, %f, %f)\n", posX, posY, posZ)
-	fmt.Printf("\tLinear Velocity      = (%f, %f, %f)\n", linVelX, linVelY, linVelZ)
-	fmt.Printf("\tOrientation          = (%f, %f, %f, %f)\n", orientationX, orientationY, orientationZ, orientationW)
-	fmt.Printf("\tAngular Velocity     = (%f, %f, %f)\n", angVelX, angVelY, angVelZ)
-	fmt.Printf("\tFrontWheelsDirection = %f\n", frontWheelsDirection)
-	fmt.Printf("\tRearWheelsDirection  = %f\n", rearWheelsDirection)
-	fmt.Printf("\tLightFlags           = %d\n", lightFlags)
+	g.posX = posX
+	g.posY = -posY
+	g.posZ = posZ
+	g.angVelX = angVelX
+	g.angVelY = -angVelY
+	g.angVelZ = angVelZ
+	g.linVelX = linVelX
+	g.linVelY = -linVelY
+	g.linVelZ = linVelZ
+	g.orientationX = orientationX
+	g.orientationY = orientationY
+	g.orientationZ = orientationZ
+	g.orientationW = orientationW
+	g.ActiveEffectFlags = lightFlags
+	g.FrontWheelsDirection = frontWheelsDirection
+	g.RearWheelsDirection = rearWheelsDirection
+
 	return nil
 }

@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
+	"gitlab.com/sparkserver/freeroam/math"
 	"net"
 	"runtime/debug"
 	"sort"
@@ -204,7 +205,7 @@ func (self *Client) getClosestPlayers(clients []*Client) []*Client {
 		if !client.IsReady() || client.Addr == self.Addr {
 			continue
 		}
-		distance := Distance(self.GetPos(), client.GetPos())
+		distance := math.Distance(self.GetPos(), client.GetPos())
 		closePlayers = append(closePlayers, clientPosSortInfo{
 			Length: int(distance),
 			Client: client,
@@ -324,7 +325,7 @@ func (c *Client) sendPlayerSlots() {
 }
 
 // GetPos returns the current position of the client.
-func (c Client) GetPos() Vector {
+func (c Client) GetPos() math.Vector2D {
 	return c.carPos.Pos()
 }
 

@@ -1,21 +1,22 @@
 package carstate
 
 import (
-	"bytes"
-	"fmt"
+	"gitlab.com/sparkserver/freeroam/binary"
 )
 
 type PacketReader struct {
-	BitReader *BitReader
+	BitReader *binary.Bitstream
+	OrigData  []byte
 }
 
 func NewPacketReader(packet []byte) *PacketReader {
 	return &PacketReader{
-		BitReader: NewReader(bytes.NewReader(packet)),
+		BitReader: binary.NewBitstream(packet),
+		OrigData:  packet,
 	}
 }
 
-func (packetReader *PacketReader) Decode() (BasePacket, error) {
+func (packetReader *PacketReader) Decode() (Packet, error) {
 	// Read header, starting with time value
 	simTimeResult, simTimeErr := packetReader.BitReader.ReadBits(16)
 	if simTimeErr != nil {
@@ -70,26 +71,31 @@ func (packetReader *PacketReader) Decode() (BasePacket, error) {
 		return &groundPkt, nil
 	}
 
-	return nil, fmt.Errorf("cannot handle packet")
+	airPkt := NewAirPacket(simTime)
+	err = airPkt.Decode(packetReader)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &airPkt, nil
 }
 
 // DecodeFloat decodes a compressed floating point value from a packet.
-func (packetReader *PacketReader) DecodeFloat(numBits int, maxValue uint64, addValue1 float64, multiplyValue1 float64, addValue2 float64) (float64, error) {
+func (packetReader *PacketReader) DecodeFloat(numBits uint, maxValue uint32, addValue1 float64, multiplyValue1 float64, addValue2 float64) (float64, error) {
 	rawBits, err := packetReader.BitReader.ReadBits(numBits)
 
 	if err != nil {
 		return 0, err
 	}
-
 	if rawBits >= maxValue {
-		hasDataLeft := packetReader.BitReader.HasDataLeft()
-		var iHasDataLeft uint64
+		hasDataLeft := packetReader.BitReader.IsNextBitSet()
+		var iHasDataLeft uint32
 		if hasDataLeft {
 			iHasDataLeft = 1
 		}
 		rawBits = iHasDataLeft + 2*rawBits - maxValue
 	}
-
 	rawBitsFloat := float64(rawBits)
 	return (rawBitsFloat+addValue1)*multiplyValue1 + addValue2, nil
 }
@@ -101,7 +107,7 @@ func (packetReader *PacketReader) NullRead() error {
 		return err
 	}
 
-	_ = packetReader.BitReader.HasDataLeft()
+	_ = packetReader.BitReader.IsNextBitSet()
 
 	return nil
 }

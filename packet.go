@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"gitlab.com/sparkserver/freeroam/carstate"
+	"gitlab.com/sparkserver/freeroam/math"
 )
 
 // WriteSubpacket writes a subpacket with specified type and payload to a bytes.Buffer
@@ -23,7 +24,7 @@ func WriteSubpacket(buf *bytes.Buffer, typ uint8, data []byte) {
 type CarPosPacket struct {
 	time   uint16
 	packet []byte
-	pos    Vector
+	pos    math.Vector2D
 }
 
 // Valid returns true if CarPosPacket contains valid packet data.
@@ -31,8 +32,8 @@ func (p *CarPosPacket) Valid() bool {
 	return p.packet != nil
 }
 
-// Pos returns the car position as a Vector.
-func (p *CarPosPacket) Pos() Vector {
+// Pos returns the car position as a Vector2D.
+func (p *CarPosPacket) Pos() math.Vector2D {
 	return p.pos
 }
 
@@ -47,7 +48,6 @@ func (p *CarPosPacket) Packet(time uint16) []byte {
 func (p *CarPosPacket) Update(packet []byte) {
 	p.time = binary.BigEndian.Uint16(packet[0:2])
 	p.packet = packet
-	//ground := (packet[2] >> 3) & 1
 	reader := carstate.NewPacketReader(packet)
 	decodedPacket, err := reader.Decode()
 
@@ -55,6 +55,14 @@ func (p *CarPosPacket) Update(packet []byte) {
 		panic(err)
 	}
 
-	p.pos.X = decodedPacket.XPos()
-	p.pos.Y = decodedPacket.YPos()
+	coords := decodedPacket.Coordinates()
+	p.pos.X = coords.X
+	p.pos.Y = coords.Y
+
+	//linVel := decodedPacket.LinearVelocity()
+	//angVel := decodedPacket.AngularVelocity()
+	//fmt.Printf("Player is at (%f, %f, %f) (ground: %t). Linear and angular velocities are: (%f, %f, %f); (%f, %f, %f)\n",
+	//	coords.X, coords.Y, coords.Z, decodedPacket.OnGround(),
+	//	linVel.X, linVel.Y, linVel.Z,
+	//	angVel.X, angVel.Y, angVel.Z)
 }

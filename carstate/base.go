@@ -1,11 +1,26 @@
 package carstate
 
-type BasePacket interface {
+import "gitlab.com/sparkserver/freeroam/math"
+
+type Packet interface {
 	SimTime() uint16
 	OnGround() bool
-	XPos() float64
-	YPos() float64
-	ZPos() float64
+	Coordinates() math.Vector3D
+	LinearVelocity() math.Vector3D
+	AngularVelocity() math.Vector3D
 
 	Decode(reader *PacketReader) error
+}
+
+type PacketStruct struct {
+	simTime uint16
+	posX    float64
+	posY    float64
+	posZ    float64
+	linVelX float64
+	linVelY float64
+	linVelZ float64
+	angVelX float64
+	angVelY float64
+	angVelZ float64
 }
