@@ -19,6 +19,7 @@ func NewServer() *Server {
 		buffers: &sync.Pool{
 			New: func() interface{} { return new(bytes.Buffer) },
 		},
+		Areas: make(map[string]*Area),
 	}
 }
 
@@ -26,6 +27,7 @@ type Server struct {
 	sync.Mutex
 	listener *net.UDPConn
 	Clients  map[string]*Client
+	Areas    map[string]*Area
 	recvbuf  []byte
 	buffers  *sync.Pool
 }
@@ -56,6 +58,7 @@ func (i *Server) RunPacketRead() {
 				Conn:    i.listener,
 				Buffers: i.buffers,
 				Clients: i.Clients,
+				Areas:   i.Areas,
 			})
 			i.Clients[addr.String()] = client
 			client.replyHandshake()

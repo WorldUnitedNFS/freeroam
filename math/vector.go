@@ -26,8 +26,15 @@ type Quaternion struct {
 	W float64
 }
 
-// Distance returns Euclidean distance between two Vectors
+// Distance returns Euclidean distance between two Vector2Ds
 func Distance(a, b Vector2D) float64 {
+	xd := a.X - b.X
+	yd := a.Y - b.Y
+	return math.Sqrt(xd*xd + yd*yd)
+}
+
+// Distance2D returns Euclidean distance between two Vector3Ds
+func Distance2D(a, b Vector3D) float64 {
 	xd := a.X - b.X
 	yd := a.Y - b.Y
 	return math.Sqrt(xd*xd + yd*yd)

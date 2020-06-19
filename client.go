@@ -16,23 +16,28 @@ import (
 	"time"
 )
 
-type clientPosSortInfo struct {
+type clientSortInfo struct {
 	Client *Client
 	Length int
 }
 
-type clientPosSort []clientPosSortInfo
+type clientSort []clientSortInfo
 
-func (self clientPosSort) Len() int {
+func (self clientSort) Len() int {
 	return len(self)
 }
 
-func (self clientPosSort) Swap(i, j int) {
+func (self clientSort) Swap(i, j int) {
 	self[i], self[j] = self[j], self[i]
 }
 
-func (self clientPosSort) Less(i, j int) bool {
-	return self[i].Length < self[j].Length
+func (self clientSort) Less(i, j int) bool {
+	c1 := self[i]
+	c2 := self[j]
+	if c1.Client.chanName == c2.Client.chanName {
+		return false
+	}
+	return c1.Length < c2.Length
 }
 
 type ClientConfig struct {
@@ -41,6 +46,7 @@ type ClientConfig struct {
 	Conn            *net.UDPConn
 	Buffers         *sync.Pool
 	Clients         map[string]*Client
+	Areas           map[string]*Area
 	AllowedPersonas []int
 }
 
@@ -57,6 +63,7 @@ func newClient(opts ClientConfig) *Client {
 		allowedPersonas: opts.AllowedPersonas,
 		buffers:         opts.Buffers,
 		updateID:        1,
+		areas:           opts.Areas,
 	}
 	return c
 }
@@ -69,6 +76,7 @@ type Client struct {
 	seq             uint16
 	carPos          CarPosPacket
 	chanInfo        []byte
+	chanName        string
 	playerInfo      []byte
 	slots           []*slotInfo
 	LastPacket      time.Time
@@ -80,6 +88,8 @@ type Client struct {
 	updateID        uint8
 	buffers         *sync.Pool
 	clients         map[string]*Client
+	areas           map[string]*Area
+	currentArea     *Area
 	timeDiffDiff    int
 	hasCalcDD       bool
 	posRecvTD       uint16
@@ -157,6 +167,7 @@ func (c *Client) processPacket(packet []byte) {
 		switch ptype {
 		case 0x00:
 			c.chanInfo = innerData
+			c.chanName = string(bytes.Trim(innerData[1:16], "\x00"))
 			updated = true
 		case 0x01:
 			if c.allowedPersonas != nil {
@@ -192,6 +203,7 @@ func (c *Client) processPacket(packet []byte) {
 	}
 	if c.IsReady() {
 		if updated {
+			c.checkArea()
 			c.registerUpdate()
 		}
 		c.sendPlayerSlots()
@@ -199,19 +211,46 @@ func (c *Client) processPacket(packet []byte) {
 	c.LastPacketSeq = pktSeq
 }
 
+func (self *Client) checkArea() {
+	worldCoords := self.GetPos()
+	areaX, areaY := CalculateAreaCoordinates(worldCoords)
+	areaKey := GetAreaKey(areaX, areaY)
+	var area *Area
+
+	if _, ok := self.areas[areaKey]; !ok {
+		self.areas[areaKey] = NewArea(areaX, areaY)
+	}
+
+	area = self.areas[areaKey]
+
+	if area == nil {
+		panic("area really shouldn't be nil!!!")
+	}
+
+	if area != self.currentArea {
+		// are we in one area?
+		if self.currentArea != nil {
+			self.currentArea.RemoveClient(self)
+		}
+
+		area.AddClient(self)
+		//fmt.Printf("client entered new area: %s\n", areaKey)
+	}
+}
+
 func (self *Client) getClosestPlayers(clients []*Client) []*Client {
-	closePlayers := make([]clientPosSortInfo, 0)
+	closePlayers := make([]clientSortInfo, 0)
 	for _, client := range clients {
 		if !client.IsReady() || client.Addr == self.Addr {
 			continue
 		}
-		distance := math.Distance(self.GetPos(), client.GetPos())
-		closePlayers = append(closePlayers, clientPosSortInfo{
+		distance := math.Distance2D(self.GetPos(), client.GetPos())
+		closePlayers = append(closePlayers, clientSortInfo{
 			Length: int(distance),
 			Client: client,
 		})
 	}
-	sort.Sort(clientPosSort(closePlayers))
+	sort.Sort(clientSort(closePlayers))
 	out := make([]*Client, min(14, len(closePlayers)))
 	for i := range out {
 		out[i] = closePlayers[i].Client
@@ -247,8 +286,8 @@ func (self *Client) addSlot(client *Client) {
 	}
 }
 
-func (self *Client) recalculateSlots(clients []*Client) {
-	players := self.getClosestPlayers(clients)
+func (self *Client) RecalculateSlots() {
+	players := self.getClosestPlayers(self.currentArea.GetClientsArray())
 	oldPlayers := make([]*Client, 0)
 	for _, v := range self.slots {
 		if v != nil {
@@ -272,15 +311,6 @@ func (self *Client) recalculateSlots(clients []*Client) {
 }
 
 func (c *Client) sendPlayerSlots() {
-	clients := make([]*Client, len(c.clients))
-	{
-		i := 0
-		for _, cl := range c.clients {
-			clients[i] = cl
-			i++
-		}
-	}
-	c.recalculateSlots(clients)
 	buf := c.buffers.Get().(*bytes.Buffer)
 	buf.Reset()
 	seq := c.getSeq()
@@ -325,7 +355,7 @@ func (c *Client) sendPlayerSlots() {
 }
 
 // GetPos returns the current position of the client.
-func (c Client) GetPos() math.Vector2D {
+func (c Client) GetPos() math.Vector3D {
 	return c.carPos.Pos()
 }
 

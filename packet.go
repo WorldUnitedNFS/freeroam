@@ -24,7 +24,7 @@ func WriteSubpacket(buf *bytes.Buffer, typ uint8, data []byte) {
 type CarPosPacket struct {
 	time   uint16
 	packet []byte
-	pos    math.Vector2D
+	pos    math.Vector3D
 }
 
 // Valid returns true if CarPosPacket contains valid packet data.
@@ -33,7 +33,7 @@ func (p *CarPosPacket) Valid() bool {
 }
 
 // Pos returns the car position as a Vector2D.
-func (p *CarPosPacket) Pos() math.Vector2D {
+func (p *CarPosPacket) Pos() math.Vector3D {
 	return p.pos
 }
 
@@ -56,13 +56,5 @@ func (p *CarPosPacket) Update(packet []byte) {
 	}
 
 	coords := decodedPacket.Coordinates()
-	p.pos.X = coords.X
-	p.pos.Y = coords.Y
-
-	//linVel := decodedPacket.LinearVelocity()
-	//angVel := decodedPacket.AngularVelocity()
-	//fmt.Printf("Player is at (%f, %f, %f) (ground: %t). Linear and angular velocities are: (%f, %f, %f); (%f, %f, %f)\n",
-	//	coords.X, coords.Y, coords.Z, decodedPacket.OnGround(),
-	//	linVel.X, linVel.Y, linVel.Z,
-	//	angVel.X, angVel.Y, angVel.Z)
+	p.pos = coords
 }
