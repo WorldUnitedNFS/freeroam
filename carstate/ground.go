@@ -7,13 +7,10 @@ import (
 type GroundPacket struct {
 	PacketStruct
 
-	FrontWheelsDirection float64
-	RearWheelsDirection  float64
-	ActiveEffectFlags    uint32
-	orientationX         float64
-	orientationY         float64
-	orientationZ         float64
-	orientationW         float64
+	FrontWheelsDirection  float64
+	RearWheelsDirection   float64
+	ActiveEffectFlags     uint32
+	OrientationQuaternion math.Quaternion
 }
 
 func NewGroundPacket(simTime uint16) GroundPacket {
@@ -55,12 +52,7 @@ func (g GroundPacket) AngularVelocity() math.Vector3D {
 }
 
 func (g GroundPacket) Orientation() math.Quaternion {
-	return math.Quaternion{
-		X: g.orientationX,
-		Y: g.orientationY,
-		Z: g.orientationZ,
-		W: g.orientationW,
-	}
+	return g.OrientationQuaternion
 }
 
 func (g *GroundPacket) Decode(reader *PacketReader) error {
@@ -180,10 +172,12 @@ func (g *GroundPacket) Decode(reader *PacketReader) error {
 	g.linVelX = linVelX
 	g.linVelY = -linVelY
 	g.linVelZ = linVelZ
-	g.orientationX = orientationX
-	g.orientationY = orientationY
-	g.orientationZ = orientationZ
-	g.orientationW = orientationW
+	g.OrientationQuaternion = math.Quaternion{
+		X: orientationX,
+		Y: orientationY,
+		Z: orientationZ,
+		W: orientationW,
+	}
 	g.ActiveEffectFlags = lightFlags
 	g.FrontWheelsDirection = frontWheelsDirection
 	g.RearWheelsDirection = rearWheelsDirection
