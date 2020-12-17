@@ -85,6 +85,6 @@ func (i *Server) RunTimer() {
 }
 
 func (i *Server) readPacket() (*net.UDPAddr, []byte) {
-	len, addr, _ := i.listener.ReadFromUDP(i.recvbuf)
-	return addr, i.recvbuf[:len]
+	recvlen, addr, _ := i.listener.ReadFromUDP(i.recvbuf)
+	return addr, i.recvbuf[:recvlen]
 }
