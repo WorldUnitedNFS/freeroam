@@ -1,4 +1,4 @@
-module gitlab.com/sparkserver/freeroam
+module github.com/WorldUnitedNFS/freeroam
 
 go 1.12
 

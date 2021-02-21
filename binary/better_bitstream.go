@@ -2,7 +2,7 @@ package binary
 
 import (
 	"fmt"
-	"gitlab.com/sparkserver/freeroam/math"
+	"github.com/WorldUnitedNFS/freeroam/math"
 )
 
 // Bitstream allows to read individual bits from an array of bytes.

@@ -2,8 +2,8 @@ package main
 
 import (
 	"fmt"
-	"gitlab.com/sparkserver/freeroam/binary"
-	"gitlab.com/sparkserver/freeroam/carstate"
+	"github.com/WorldUnitedNFS/freeroam/binary"
+	"github.com/WorldUnitedNFS/freeroam/carstate"
 )
 
 func main() {

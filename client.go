@@ -8,7 +8,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
-	"gitlab.com/sparkserver/freeroam/math"
+	"github.com/WorldUnitedNFS/freeroam/math"
 	"net"
 	"runtime/debug"
 	"sort"

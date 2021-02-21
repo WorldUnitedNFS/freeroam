@@ -9,9 +9,9 @@ import (
 	"log"
 	"net/http"
 
+	"github.com/WorldUnitedNFS/freeroam"
+	"github.com/WorldUnitedNFS/freeroam/fms"
 	"github.com/google/gops/agent"
-	"gitlab.com/sparkserver/freeroam"
-	"gitlab.com/sparkserver/freeroam/fms"
 )
 
 var (

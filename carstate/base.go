@@ -1,6 +1,6 @@
 package carstate
 
-import "gitlab.com/sparkserver/freeroam/math"
+import "github.com/WorldUnitedNFS/freeroam/math"
 
 type Packet interface {
 	SimTime() uint16

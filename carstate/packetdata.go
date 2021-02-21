@@ -1,7 +1,7 @@
 package carstate
 
 import (
-	"gitlab.com/sparkserver/freeroam/binary"
+	"github.com/WorldUnitedNFS/freeroam/binary"
 )
 
 type PacketReader struct {

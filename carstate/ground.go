@@ -1,7 +1,7 @@
 package carstate
 
 import (
-	"gitlab.com/sparkserver/freeroam/math"
+	"github.com/WorldUnitedNFS/freeroam/math"
 )
 
 type GroundPacket struct {

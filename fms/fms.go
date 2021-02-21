@@ -11,8 +11,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/WorldUnitedNFS/freeroam"
 	"github.com/gorilla/websocket"
-	"gitlab.com/sparkserver/freeroam"
 )
 
 type PlayerInfo struct {

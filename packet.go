@@ -7,8 +7,8 @@ package freeroam
 import (
 	"bytes"
 	"encoding/binary"
-	"gitlab.com/sparkserver/freeroam/carstate"
-	"gitlab.com/sparkserver/freeroam/math"
+	"github.com/WorldUnitedNFS/freeroam/carstate"
+	"github.com/WorldUnitedNFS/freeroam/math"
 )
 
 // WriteSubpacket writes a subpacket with specified type and payload to a bytes.Buffer
