@@ -16,9 +16,10 @@ import (
 )
 
 type PlayerInfo struct {
-	Name string `json:"name"`
-	X    int    `json:"x"`
-	Y    int    `json:"y"`
+	Name     string `json:"name"`
+	X        int    `json:"x"`
+	Y        int    `json:"y"`
+	Rotation int    `json:"rotation"`
 }
 
 func NewMapServer(i *freeroam.Server, config freeroam.FMSConfig) *MapServer {
@@ -82,9 +83,10 @@ func (s *MapServer) SendPlayers() {
 		if c.IsReady() {
 			pos := c.GetPos()
 			players = append(players, PlayerInfo{
-				Name: c.PersonaName,
-				X:    int(math.Round(pos.X)),
-				Y:    int(math.Round(pos.Y)),
+				Name:     c.PersonaName,
+				X:        int(math.Round(pos.X)),
+				Y:        int(math.Round(pos.Y)),
+				Rotation: int(math.Round(c.GetRotation())),
 			})
 		}
 	}

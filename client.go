@@ -328,6 +328,11 @@ func (c Client) GetPos() math.Vector2D {
 	return c.carPos.Pos()
 }
 
+// GetRotation returns the current rotation of the client.
+func (c Client) GetRotation() float64 {
+	return c.carPos.Rotation()
+}
+
 // SendRawPacket sends a raw UDP packet to the client.
 func (c *Client) SendRawPacket(b []byte) error {
 	_, err := c.conn.WriteToUDP(b, c.Addr)
