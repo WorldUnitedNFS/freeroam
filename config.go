@@ -5,8 +5,9 @@ type UDPConfig struct {
 }
 
 type FMSConfig struct {
-	ListenAddress string
-	AllowedOrigin string
+	ListenAddress  string
+	AllowedOrigin  string
+	UpdateInterval int
 }
 
 type Config struct {

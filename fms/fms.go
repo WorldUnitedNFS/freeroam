@@ -31,15 +31,23 @@ func NewMapServer(i *freeroam.Server, config freeroam.FMSConfig) *MapServer {
 			},
 		},
 		players: make([]PlayerInfo, 0),
+		UpdateInterval: func() time.Duration {
+			if config.UpdateInterval <= 0 {
+				return 250
+			}
+
+			return time.Duration(config.UpdateInterval)
+		}(),
 	}
 }
 
 type MapServer struct {
 	sync.Mutex
-	i        *freeroam.Server
-	conns    map[string]*websocket.Conn
-	upgrader websocket.Upgrader
-	players  []PlayerInfo
+	i              *freeroam.Server
+	conns          map[string]*websocket.Conn
+	upgrader       websocket.Upgrader
+	players        []PlayerInfo
+	UpdateInterval time.Duration
 }
 
 func (s *MapServer) Handle(w http.ResponseWriter, r *http.Request) {
@@ -54,9 +62,10 @@ func (s *MapServer) Handle(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *MapServer) Run() {
+	updateInterval := s.UpdateInterval
 	for {
 		s.SendPlayers()
-		time.Sleep(250 * time.Millisecond)
+		time.Sleep(updateInterval * time.Millisecond)
 	}
 }
 
