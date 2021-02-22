@@ -37,10 +37,13 @@ func main() {
 		fmsMux.HandleFunc("/ws", mapSrv.Handle)
 
 		go mapSrv.Run()
-		err := http.ListenAndServe(mapAddr, fmsMux)
-		if err != nil {
-			log.Fatal(err)
-		}
+		go func() {
+			log.Printf("Starting FMS on %v", mapAddr)
+			err := http.ListenAndServe(mapAddr, fmsMux)
+			if err != nil {
+				log.Fatal(err)
+			}
+		}()
 	}
 
 	log.Printf("Starting server on %v", listenAddr)
