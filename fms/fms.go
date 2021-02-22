@@ -21,12 +21,16 @@ type PlayerInfo struct {
 	Y    int    `json:"y"`
 }
 
-func NewMapServer(i *freeroam.Server) *MapServer {
+func NewMapServer(i *freeroam.Server, config freeroam.FMSConfig) *MapServer {
 	return &MapServer{
-		i:        i,
-		conns:    make(map[string]*websocket.Conn, 0),
-		upgrader: websocket.Upgrader{},
-		players:  make([]PlayerInfo, 0),
+		i:     i,
+		conns: make(map[string]*websocket.Conn, 0),
+		upgrader: websocket.Upgrader{
+			CheckOrigin: func(r *http.Request) bool {
+				return r.Header.Get("Origin") == config.AllowedOrigin
+			},
+		},
+		players: make([]PlayerInfo, 0),
 	}
 }
 
@@ -78,7 +82,13 @@ func (s *MapServer) SendPlayers() {
 	s.i.Unlock()
 
 	for addr, conn := range s.conns {
-		err := conn.WriteJSON(players)
+		err := conn.WriteJSON([]PlayerInfo{
+			{
+				Name: "TEST",
+				X:    3803,
+				Y:    -1307,
+			},
+		})
 		if err != nil {
 			delete(s.conns, addr)
 		}

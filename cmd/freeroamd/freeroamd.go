@@ -5,24 +5,59 @@
 package main
 
 import (
-	"flag"
+	"io/ioutil"
 	"log"
 	"net/http"
+	"os"
 
 	"github.com/WorldUnitedNFS/freeroam"
 	"github.com/WorldUnitedNFS/freeroam/fms"
 	"github.com/google/gops/agent"
-)
-
-var (
-	listenAddr string
-	mapAddr    string
+	"github.com/pelletier/go-toml"
 )
 
 func main() {
-	flag.StringVar(&listenAddr, "listen", ":9999", "Address to listen to")
-	flag.StringVar(&mapAddr, "map", "", "Address for map server to listen to")
-	flag.Parse()
+	var config freeroam.Config
+
+	configFile, configErr := os.Open("config.toml")
+
+	if os.IsNotExist(configErr) {
+		config = freeroam.DefaultConfig()
+		configFile, configErr = os.Create("config.toml")
+
+		if configErr != nil {
+			log.Fatal(configErr)
+			return
+		}
+
+		configMarshalled, configErr := toml.Marshal(config)
+
+		if configErr != nil {
+			log.Fatal(configErr)
+			return
+		}
+
+		_, configErr = configFile.Write(configMarshalled)
+		if configErr != nil {
+			log.Fatal(configErr)
+			return
+		}
+
+		log.Print("Generated default config")
+	} else {
+		configBytes, configErr := ioutil.ReadFile("config.toml")
+		if configErr != nil {
+			log.Fatal(configErr)
+			return
+		}
+
+		configErr = toml.Unmarshal(configBytes, &config)
+
+		if configErr != nil {
+			log.Fatal(configErr)
+			return
+		}
+	}
 
 	if err := agent.Listen(agent.Options{ShutdownCleanup: true}); err != nil {
 		log.Print(err)
@@ -30,24 +65,24 @@ func main() {
 
 	i := freeroam.NewServer()
 
-	if mapAddr != "" {
-		mapSrv := fms.NewMapServer(i)
+	if config.FMS.ListenAddress != "" {
+		mapSrv := fms.NewMapServer(i, config.FMS)
 
 		fmsMux := http.NewServeMux()
 		fmsMux.HandleFunc("/ws", mapSrv.Handle)
 
 		go mapSrv.Run()
 		go func() {
-			log.Printf("Starting FMS on %v", mapAddr)
-			err := http.ListenAndServe(mapAddr, fmsMux)
+			log.Printf("Starting FMS on %v", config.FMS.ListenAddress)
+			err := http.ListenAndServe(config.FMS.ListenAddress, fmsMux)
 			if err != nil {
 				log.Fatal(err)
 			}
 		}()
 	}
 
-	log.Printf("Starting server on %v", listenAddr)
-	if err := i.Listen(listenAddr); err != nil {
+	log.Printf("Starting server on %v", config.UDP.ListenAddress)
+	if err := i.Listen(config.UDP.ListenAddress); err != nil {
 		log.Fatal(err)
 	}
 }
