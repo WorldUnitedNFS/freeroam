@@ -82,13 +82,7 @@ func (s *MapServer) SendPlayers() {
 	s.i.Unlock()
 
 	for addr, conn := range s.conns {
-		err := conn.WriteJSON([]PlayerInfo{
-			{
-				Name: "TEST",
-				X:    3803,
-				Y:    -1307,
-			},
-		})
+		err := conn.WriteJSON(players)
 		if err != nil {
 			delete(s.conns, addr)
 		}
