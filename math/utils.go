@@ -1,5 +1,7 @@
 package math
 
+import "math"
+
 func MinUI(x uint, y uint) uint {
 	if x < y {
 		return x
@@ -7,9 +9,6 @@ func MinUI(x uint, y uint) uint {
 	return y
 }
 
-func MinUI32(x uint32, y uint32) uint32 {
-	if x < y {
-		return x
-	}
-	return y
+func RadToDeg(v float64) float64 {
+	return v * (180 / math.Pi)
 }

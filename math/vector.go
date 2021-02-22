@@ -18,14 +18,6 @@ type Vector3D struct {
 	Z float64
 }
 
-// Quaternion represents a quaternion
-type Quaternion struct {
-	X float64
-	Y float64
-	Z float64
-	W float64
-}
-
 // Distance returns Euclidean distance between two Vectors
 func Distance(a, b Vector2D) float64 {
 	xd := a.X - b.X

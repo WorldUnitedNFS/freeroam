@@ -2,6 +2,7 @@ package carstate
 
 import (
 	"github.com/WorldUnitedNFS/freeroam/math"
+	"github.com/westphae/quaternion"
 )
 
 type GroundPacket struct {
@@ -10,7 +11,8 @@ type GroundPacket struct {
 	FrontWheelsDirection  float64
 	RearWheelsDirection   float64
 	ActiveEffectFlags     uint32
-	OrientationQuaternion math.Quaternion
+	OrientationQuaternion quaternion.Quaternion
+	RollRadians           float64
 }
 
 func NewGroundPacket(simTime uint16) GroundPacket {
@@ -35,6 +37,10 @@ func (g GroundPacket) Coordinates() math.Vector3D {
 	}
 }
 
+func (g GroundPacket) Rotation() float64 {
+	return math.RadToDeg(-g.RollRadians)
+}
+
 func (g GroundPacket) LinearVelocity() math.Vector3D {
 	return math.Vector3D{
 		X: g.linVelX,
@@ -51,7 +57,7 @@ func (g GroundPacket) AngularVelocity() math.Vector3D {
 	}
 }
 
-func (g GroundPacket) Orientation() math.Quaternion {
+func (g GroundPacket) Orientation() quaternion.Quaternion {
 	return g.OrientationQuaternion
 }
 
@@ -172,7 +178,7 @@ func (g *GroundPacket) Decode(reader *PacketReader) error {
 	g.linVelX = linVelX
 	g.linVelY = -linVelY
 	g.linVelZ = linVelZ
-	g.OrientationQuaternion = math.Quaternion{
+	g.OrientationQuaternion = quaternion.Quaternion{
 		X: orientationX,
 		Y: orientationY,
 		Z: orientationZ,
@@ -181,6 +187,9 @@ func (g *GroundPacket) Decode(reader *PacketReader) error {
 	g.ActiveEffectFlags = lightFlags
 	g.FrontWheelsDirection = frontWheelsDirection
 	g.RearWheelsDirection = rearWheelsDirection
+
+	_, _, roll := g.OrientationQuaternion.Euler()
+	g.RollRadians = roll
 
 	return nil
 }

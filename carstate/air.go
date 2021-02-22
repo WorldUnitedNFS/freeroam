@@ -34,6 +34,10 @@ func (g AirPacket) Coordinates() math.Vector3D {
 	}
 }
 
+func (g AirPacket) Rotation() float64 {
+	return math.RadToDeg(g.Yaw)
+}
+
 func (g AirPacket) LinearVelocity() math.Vector3D {
 	return math.Vector3D{
 		X: g.linVelX,

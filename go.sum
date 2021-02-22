@@ -20,6 +20,8 @@ github.com/shirou/w32 v0.0.0-20160930032740-bb4de0191aa4/go.mod h1:qsXQc7+bwAM3Q
 github.com/stretchr/objx v0.1.0/go.mod h1:HFkY916IF+rwdDfMAkV7OtwuqBVzrE8GR6GFx+wExME=
 github.com/stretchr/testify v1.3.0 h1:TivCn/peBQ7UY8ooIcPgZFpTNSz0Q2U6UrFlUfqbe0Q=
 github.com/stretchr/testify v1.3.0/go.mod h1:M5WIy9Dh21IEIfnGCwXGc5bZfKNJtfHm1UVUgZn+9EI=
+github.com/westphae/quaternion v0.0.0-20190804192539-eb19a71cb818 h1:mqjZgo7sYcdowZ+AKh/pTunpj6dGNA3PzVKo9+WJm3E=
+github.com/westphae/quaternion v0.0.0-20190804192539-eb19a71cb818/go.mod h1:QTAatvZIftK/dJJK1wtxV+M3VF/IW7/nRJukOT52ItQ=
 github.com/xlab/treeprint v0.0.0-20180616005107-d6fb6747feb6/go.mod h1:ce1O1j6UtZfjr22oyGxGLbauSBp2YVXpARAosm7dHBg=
 golang.org/x/sys v0.0.0-20171017063910-8dbc5d05d6ed/go.mod h1:STP8DvDyc/dI5b8T5hshtkjS+E42TnysNCUPdjciGhY=
 rsc.io/goversion v1.0.0/go.mod h1:Eih9y/uIBS3ulggl7KNJ09xGSLcuNaLgmvvqa07sgfo=
