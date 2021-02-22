@@ -128,6 +128,7 @@ func (c *Client) processPacket(packet []byte) {
 			debug.PrintStack()
 		}
 	}()
+	c.Ping = int(time.Now().Sub(c.LastPacket).Milliseconds())
 	c.LastPacket = time.Now()
 	pktSeq := binary.BigEndian.Uint16(packet[0:2])
 	if pktSeq == 65535 {
@@ -184,9 +185,7 @@ func (c *Client) processPacket(packet []byte) {
 					updated = true
 				}
 				c.carPos.Update(innerData)
-				iTime := binary.BigEndian.Uint16(innerData[0:2])
 				c.posRecvTD = c.getTimeDiff()
-				c.Ping = int(c.getTimeDiff() - iTime)
 			}
 		}
 	}
@@ -295,7 +294,7 @@ func (c *Client) sendPlayerSlots() {
 		if slot == nil {
 			buf.Write([]byte{0xff, 0xff})
 		} else {
-			pktTime := uint16(int(c.getTimeDiff()) - c.Ping - slot.Client.Ping)
+			pktTime := uint16(int(c.getTimeDiff()) - slot.Client.Ping)
 			if slot.HasSentFull && slot.Client.posRecvTD == slot.LastCPTime {
 				buf.Write([]byte{0x00, 0xff})
 			} else if fullsSent >= 3 {
