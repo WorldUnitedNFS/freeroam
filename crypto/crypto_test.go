@@ -32,32 +32,32 @@ func TestPacketChecksum(t *testing.T) {
 	}
 }
 
-func TestPacketEncrypt(t *testing.T) {
-	sessionKey, err := ParseSessionKey("FMb88lBCpYFqrEzsigPNVA==")
-	if err != nil {
-		t.Error(err)
-	}
-	testPayload := []byte{0x8f, 0x6c, 0x09}
-	encryptedPayload, err := sessionKey.Cipher(testPayload, 0)
-	if err != nil {
-		t.Error(err)
-	}
-	if !bytes.Equal(encryptedPayload, []byte{0x00, 0x2f, 0x7a}) {
-		t.Errorf("Expected encrypted payload to be [00 2F 7A], got: %s", hex.Dump(encryptedPayload))
-	}
-}
-
 func TestPacketDecrypt(t *testing.T) {
 	sessionKey, err := ParseSessionKey("FMb88lBCpYFqrEzsigPNVA==")
 	if err != nil {
 		t.Error(err)
 	}
-	testPayload := []byte{0x00, 0x2f, 0x7a}
+	testPayload := []byte{0x8f, 0x6c, 0x09}
 	decryptedPayload, err := sessionKey.Cipher(testPayload, 0)
 	if err != nil {
 		t.Error(err)
 	}
-	if !bytes.Equal(decryptedPayload, []byte{0x8f, 0x6c, 0x09}) {
-		t.Errorf("Expected decrypted payload to be [8f 6c 09], got: %s", hex.Dump(decryptedPayload))
+	if !bytes.Equal(decryptedPayload, []byte{0x00, 0x2f, 0x7a}) {
+		t.Errorf("Expected decrypted payload to be [00 2F 7A], got: %s", hex.Dump(decryptedPayload))
+	}
+}
+
+func TestPacketEncrypt(t *testing.T) {
+	sessionKey, err := ParseSessionKey("FMb88lBCpYFqrEzsigPNVA==")
+	if err != nil {
+		t.Error(err)
+	}
+	testPayload := []byte{0x00, 0x2f, 0x7a}
+	encryptedPayload, err := sessionKey.Cipher(testPayload, 0)
+	if err != nil {
+		t.Error(err)
+	}
+	if !bytes.Equal(encryptedPayload, []byte{0x8f, 0x6c, 0x09}) {
+		t.Errorf("Expected encrypted payload to be [8f 6c 09], got: %s", hex.Dump(encryptedPayload))
 	}
 }
