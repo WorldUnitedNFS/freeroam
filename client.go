@@ -198,13 +198,13 @@ func (c *Client) processPacket(packet []byte) {
 	c.LastPacketSeq = pktSeq
 }
 
-func (self *Client) getClosestPlayers(clients []*Client) []*Client {
+func (c *Client) getClosestPlayers(clients []*Client) []*Client {
 	closePlayers := make([]clientPosSortInfo, 0)
 	for _, client := range clients {
-		if !client.IsReady() || client.Addr == self.Addr {
+		if !client.IsReady() || client.Addr == c.Addr {
 			continue
 		}
-		distance := math.Distance(self.GetPos(), client.GetPos())
+		distance := math.Distance(c.GetPos(), client.GetPos())
 		closePlayers = append(closePlayers, clientPosSortInfo{
 			Length: int(distance),
 			Client: client,
@@ -218,22 +218,22 @@ func (self *Client) getClosestPlayers(clients []*Client) []*Client {
 	return out
 }
 
-func (self *Client) removeSlot(client *Client) {
+func (c *Client) removeSlot(client *Client) {
 	index := func() int {
-		for i, c := range self.slots {
-			if c != nil && c.Client == client {
+		for i, slot := range c.slots {
+			if slot != nil && slot.Client == client {
 				return i
 			}
 		}
 		return -1
 	}()
-	self.slots[index] = nil
+	c.slots[index] = nil
 }
 
-func (self *Client) addSlot(client *Client) {
+func (c *Client) addSlot(client *Client) {
 	index := -1
-	for i, c := range self.slots {
-		if c == nil {
+	for i, slot := range c.slots {
+		if slot == nil {
 			index = i
 			break
 		}
@@ -241,17 +241,17 @@ func (self *Client) addSlot(client *Client) {
 	if index == -1 {
 		panic("addSlot: tried to add client with all slots full")
 	}
-	self.slots[index] = &slotInfo{
+	c.slots[index] = &slotInfo{
 		Client: client,
 	}
 }
 
-func (self *Client) recalculateSlots(clients []*Client) {
-	players := self.getClosestPlayers(clients)
+func (c *Client) recalculateSlots(clients []*Client) {
+	players := c.getClosestPlayers(clients)
 	oldPlayers := make([]*Client, 0)
-	for _, v := range self.slots {
-		if v != nil {
-			oldPlayers = append(oldPlayers, v.Client)
+	for _, slot := range c.slots {
+		if slot != nil {
+			oldPlayers = append(oldPlayers, slot.Client)
 		}
 	}
 	diff := ArrayDiff(oldPlayers, players)
@@ -260,12 +260,12 @@ func (self *Client) recalculateSlots(clients []*Client) {
 	// As a temporary workaround, only one section of the diff is handled at a time.
 	// This allows the game to remove old players BEFORE swapping in new ones.
 	if len(diff.Removed) > 0 {
-		for _, c := range diff.Removed {
-			self.removeSlot(c)
+		for _, removedClient := range diff.Removed {
+			c.removeSlot(removedClient)
 		}
 	} else if len(diff.Added) > 0 {
-		for _, c := range diff.Added {
-			self.addSlot(c)
+		for _, addedClient := range diff.Added {
+			c.addSlot(addedClient)
 		}
 	}
 }
