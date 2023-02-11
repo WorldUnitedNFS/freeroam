@@ -36,7 +36,7 @@ func (self clientPosSort) Less(i, j int) bool {
 }
 
 type ClientConfig struct {
-	CliTime         []byte
+	InitialTick     uint16
 	Addr            *net.UDPAddr
 	Conn            *net.UDPConn
 	Buffers         *sync.Pool
@@ -49,7 +49,8 @@ func newClient(opts ClientConfig) *Client {
 		Addr:            opts.Addr,
 		conn:            opts.Conn,
 		startTime:       time.Now(),
-		cliTime:         binary.BigEndian.Uint16(opts.CliTime),
+		initialTick:     opts.InitialTick,
+		tickDiff:        int16(opts.InitialTick - getServerTick()),
 		seq:             0,
 		slots:           make([]*slotInfo, 14),
 		LastPacket:      time.Now(),
@@ -65,23 +66,20 @@ type Client struct {
 	Addr            *net.UDPAddr
 	conn            *net.UDPConn
 	startTime       time.Time
-	cliTime         uint16
+	initialTick     uint16
+	tickDiff        int16
 	seq             uint16
 	carPos          CarPosPacket
 	chanInfo        []byte
 	playerInfo      []byte
 	slots           []*slotInfo
 	LastPacket      time.Time
-	LastPacketSeq   uint16
-	Ping            int
 	PersonaName     string
 	allowedPersonas []int
 	ackMissedCount  int
 	updateID        uint8
 	buffers         *sync.Pool
 	clients         map[string]*Client
-	timeDiffDiff    int
-	hasCalcDD       bool
 	posRecvTD       uint16
 }
 
@@ -90,6 +88,10 @@ func (c *Client) registerUpdate() {
 	if c.updateID == 0 {
 		c.updateID = 1
 	}
+}
+
+func getServerTick() uint16 {
+	return uint16(time.Now().UnixMilli())
 }
 
 func (c Client) getTimeDiff() uint16 {
@@ -107,8 +109,8 @@ func (c *Client) replyHandshake() {
 	buf.Reset()
 	binary.Write(buf, binary.BigEndian, c.getSeq())
 	buf.WriteByte(0x01)
-	binary.Write(buf, binary.BigEndian, c.getTimeDiff())
-	binary.Write(buf, binary.BigEndian, c.cliTime)
+	binary.Write(buf, binary.BigEndian, getServerTick())
+	binary.Write(buf, binary.BigEndian, c.tickDiff)
 	buf.Write([]byte{0x49, 0x26, 0x03, 0x01})
 	c.SendRawPacket(buf.Bytes())
 	c.buffers.Put(buf)
@@ -128,12 +130,7 @@ func (c *Client) processPacket(packet []byte) {
 			debug.PrintStack()
 		}
 	}()
-	c.Ping = int(time.Now().Sub(c.LastPacket).Milliseconds())
 	c.LastPacket = time.Now()
-	pktSeq := binary.BigEndian.Uint16(packet[0:2])
-	if pktSeq == 65535 {
-		c.LastPacketSeq = 0
-	}
 	srvCounter := binary.BigEndian.Uint16(packet[8:10])
 	for _, slot := range c.slots {
 		if slot != nil && !slot.UpdateACKed {
@@ -180,13 +177,11 @@ func (c *Client) processPacket(packet []byte) {
 			c.PersonaName = string(nameField[:cStrLen(nameField)])
 			updated = true
 		case 0x12:
-			if pktSeq >= c.LastPacketSeq {
-				if c.IsReady() && !bytes.Equal(innerData[2:], c.carPos.packet[2:]) {
-					updated = true
-				}
-				c.carPos.Update(innerData)
-				c.posRecvTD = c.getTimeDiff()
+			if c.IsReady() && !bytes.Equal(innerData[2:], c.carPos.packet[2:]) {
+				updated = true
 			}
+			c.carPos.Update(innerData)
+			c.posRecvTD = c.getTimeDiff()
 		}
 	}
 	if c.IsReady() {
@@ -195,7 +190,6 @@ func (c *Client) processPacket(packet []byte) {
 		}
 		c.sendPlayerSlots()
 	}
-	c.LastPacketSeq = pktSeq
 }
 
 func (c *Client) getClosestPlayers(clients []*Client) []*Client {
@@ -285,8 +279,8 @@ func (c *Client) sendPlayerSlots() {
 	seq := c.getSeq()
 	binary.Write(buf, binary.BigEndian, seq)
 	buf.WriteByte(0x02)
-	binary.Write(buf, binary.BigEndian, c.getTimeDiff())
-	binary.Write(buf, binary.BigEndian, c.cliTime)
+	binary.Write(buf, binary.BigEndian, getServerTick())
+	binary.Write(buf, binary.BigEndian, c.tickDiff)
 	binary.Write(buf, binary.BigEndian, seq)
 	buf.Write([]byte{0xff, 0xff, 0x00})
 	fullsSent := 0
@@ -294,23 +288,23 @@ func (c *Client) sendPlayerSlots() {
 		if slot == nil {
 			buf.Write([]byte{0xff, 0xff})
 		} else {
-			pktTime := uint16(int(c.getTimeDiff()) - slot.Client.Ping)
+			//pktTime := uint16(int(c.getTimeDiff()) - slot.Client.Ping)
 			if slot.HasSentFull && slot.Client.posRecvTD == slot.LastCPTime {
 				buf.Write([]byte{0x00, 0xff})
 			} else if fullsSent >= 3 {
-				slot.Client.writeFullPosPacket(buf, pktTime)
+				slot.Client.writeFullPosPacket(buf)
 				slot.LastCPTime = slot.Client.posRecvTD
 			} else if !slot.HasSentFull {
-				slot.Client.writeFullSlotPacket(buf, pktTime)
+				slot.Client.writeFullSlotPacket(buf)
 				slot.HasSentFull = true
 				slot.PacketSentSeq = seq
 				slot.LastCPTime = slot.Client.posRecvTD
 				fullsSent++
 			} else if slot.UpdateACKed || slot.ACKMissedCount < 5 {
-				slot.Client.writeFullPosPacket(buf, pktTime)
+				slot.Client.writeFullPosPacket(buf)
 				slot.LastCPTime = slot.Client.posRecvTD
 			} else {
-				slot.Client.writeFullSlotPacket(buf, pktTime)
+				slot.Client.writeFullSlotPacket(buf)
 				slot.ACKMissedCount = 0
 				slot.PacketSentSeq = seq
 				slot.LastCPTime = slot.Client.posRecvTD
@@ -345,16 +339,16 @@ func (c Client) IsReady() bool {
 	return c.chanInfo != nil && c.playerInfo != nil && c.carPos.Valid()
 }
 
-func (c Client) writeFullPosPacket(buf *bytes.Buffer, time uint16) {
+func (c Client) writeFullPosPacket(buf *bytes.Buffer) {
 	buf.WriteByte(0x00) // Slot start
-	WriteSubpacket(buf, 0x12, c.carPos.Packet(time))
+	WriteSubpacket(buf, 0x12, c.carPos.Packet())
 	buf.WriteByte(0xff) // Slot end
 }
 
-func (c Client) writeFullSlotPacket(buf *bytes.Buffer, time uint16) {
+func (c Client) writeFullSlotPacket(buf *bytes.Buffer) {
 	buf.WriteByte(0x00) // Slot start
 	WriteSubpacket(buf, 0x00, c.chanInfo)
 	WriteSubpacket(buf, 0x01, c.playerInfo)
-	WriteSubpacket(buf, 0x12, c.carPos.Packet(time))
+	WriteSubpacket(buf, 0x12, c.carPos.Packet())
 	buf.WriteByte(0xff) // Slot end
 }

@@ -44,8 +44,8 @@ func (p *CarPosPacket) Rotation() float64 {
 }
 
 // Packet returns the packet data with the packet time replaced by the argument.
-func (p *CarPosPacket) Packet(time uint16) []byte {
-	binary.BigEndian.PutUint16(p.packet, time)
+func (p *CarPosPacket) Packet() []byte {
+	//binary.BigEndian.PutUint16(p.packet, time)
 	return p.packet
 }
 

@@ -6,6 +6,7 @@ package freeroam
 
 import (
 	"bytes"
+	"encoding/binary"
 	"log"
 	"net"
 	"sync"
@@ -51,11 +52,11 @@ func (i *Server) RunPacketRead() {
 		if len(data) == 58 && data[2] == 0x06 {
 			log.Printf("New client from %v", addr.String())
 			client := newClient(ClientConfig{
-				CliTime: data[52:54],
-				Addr:    addr,
-				Conn:    i.listener,
-				Buffers: i.buffers,
-				Clients: i.Clients,
+				InitialTick: binary.BigEndian.Uint16(data[52:54]),
+				Addr:        addr,
+				Conn:        i.listener,
+				Buffers:     i.buffers,
+				Clients:     i.Clients,
 			})
 			i.Clients[addr.String()] = client
 			client.replyHandshake()
