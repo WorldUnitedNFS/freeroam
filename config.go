@@ -1,7 +1,9 @@
 package freeroam
 
 type UDPConfig struct {
-	ListenAddress string
+	ListenAddress    string
+	VisibilityRadius float64
+	MaxVisiblePlayers int
 }
 
 type FMSConfig struct {
@@ -18,7 +20,9 @@ type Config struct {
 func DefaultConfig() Config {
 	return Config{
 		UDP: UDPConfig{
-			ListenAddress: ":9999",
+			ListenAddress:     ":9999",
+			VisibilityRadius:  300.0,
+			MaxVisiblePlayers: 14,
 		},
 		FMS: FMSConfig{
 			ListenAddress: "127.0.0.1:6996",

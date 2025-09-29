@@ -63,7 +63,7 @@ func main() {
 		log.Print(err)
 	}
 
-	i := freeroam.NewServer()
+	i := freeroam.NewServer(config)
 
 	if config.FMS.ListenAddress != "" {
 		mapSrv := fms.NewMapServer(i, config.FMS)
