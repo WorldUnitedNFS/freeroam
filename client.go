@@ -8,7 +8,6 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
-	"github.com/WorldUnitedNFS/freeroam/grid"
 	"github.com/WorldUnitedNFS/freeroam/math"
 	"net"
 	"runtime/debug"
@@ -37,54 +36,55 @@ func (self clientPosSort) Less(i, j int) bool {
 }
 
 type ClientConfig struct {
-	InitialTick     uint16
-	Addr            *net.UDPAddr
-	Conn            *net.UDPConn
-	Buffers         *sync.Pool
-	Clients         map[string]*Client
-	AllowedPersonas []int
+	InitialTick       uint16
+	Addr              *net.UDPAddr
+	Conn              *net.UDPConn
+	Buffers           *sync.Pool
+	Clients           map[string]*Client
+	AllowedPersonas   []int
+	VisibilityRadius  float64
+	MaxVisiblePlayers int
 }
 
 func newClient(opts ClientConfig) *Client {
 	c := &Client{
-		Addr:            opts.Addr,
-		conn:            opts.Conn,
-		startTime:       time.Now(),
-		initialTick:     opts.InitialTick,
-		tickDiff:        int16(opts.InitialTick - getServerTick()),
-		seq:             0,
-		slots:           make([]*slotInfo, 14),
-		LastPacket:      time.Now(),
-		clients:         opts.Clients,
-		allowedPersonas: opts.AllowedPersonas,
-		buffers:         opts.Buffers,
-		updateID:        1,
+		Addr:             opts.Addr,
+		conn:             opts.Conn,
+		startTime:        time.Now(),
+		initialTick:      opts.InitialTick,
+		tickDiff:         int16(opts.InitialTick - getServerTick()),
+		seq:              0,
+		slots:            make([]*slotInfo, opts.MaxVisiblePlayers),
+		LastPacket:       time.Now(),
+		clients:          opts.Clients,
+		allowedPersonas:  opts.AllowedPersonas,
+		buffers:          opts.Buffers,
+		updateID:         1,
+		visibilityRadius: opts.VisibilityRadius,
 	}
 	return c
 }
 
 type Client struct {
-	Addr            *net.UDPAddr
-	conn            *net.UDPConn
-	startTime       time.Time
-	initialTick     uint16
-	tickDiff        int16
-	seq             uint16
-	carPos          CarPosPacket
-	chanInfo        []byte
-	playerInfo      []byte
-	slots           []*slotInfo
-	LastPacket      time.Time
-	PersonaName     string
-	allowedPersonas []int
-	ackMissedCount  int
-	updateID        uint8
-	buffers         *sync.Pool
-	clients         map[string]*Client
-	posRecvTD       uint16
-	posX            float32
-	posY            float32
-	currentGridCell *grid.WorldGridCell
+	Addr             *net.UDPAddr
+	conn             *net.UDPConn
+	startTime        time.Time
+	initialTick      uint16
+	tickDiff         int16
+	seq              uint16
+	carPos           CarPosPacket
+	chanInfo         []byte
+	playerInfo       []byte
+	slots            []*slotInfo
+	LastPacket       time.Time
+	PersonaName      string
+	allowedPersonas  []int
+	ackMissedCount   int
+	updateID         uint8
+	buffers          *sync.Pool
+	clients          map[string]*Client
+	posRecvTD        uint16
+	visibilityRadius float64
 }
 
 func (c *Client) registerUpdate() {
@@ -135,9 +135,6 @@ func (c *Client) processPacket(packet []byte) {
 		}
 	}()
 	c.LastPacket = time.Now()
-	c.posX = float32(binary.BigEndian.Uint16(packet[14:16])+350*5) / 5
-	c.posY = -float32(int16(binary.BigEndian.Uint16(packet[12:14])-5000*5)) / 5
-
 	srvCounter := binary.BigEndian.Uint16(packet[8:10])
 	for _, slot := range c.slots {
 		if slot != nil && !slot.UpdateACKed {
@@ -199,20 +196,25 @@ func (c *Client) processPacket(packet []byte) {
 	}
 }
 
-func (c *Client) getClosestPlayers(clients map[*Client]bool) []*Client {
+func (c *Client) getClosestPlayers(clients []*Client) []*Client {
 	closePlayers := make([]clientPosSortInfo, 0)
-	for client := range clients {
+	for _, client := range clients {
 		if !client.IsReady() || client.Addr == c.Addr {
 			continue
 		}
 		distance := math.Distance(c.GetPos(), client.GetPos())
+		if distance > c.visibilityRadius {
+			continue
+		}
 		closePlayers = append(closePlayers, clientPosSortInfo{
 			Length: int(distance),
 			Client: client,
 		})
 	}
 	sort.Sort(clientPosSort(closePlayers))
-	out := make([]*Client, min(14, len(closePlayers)))
+	
+	maxSlots := len(c.slots)
+	out := make([]*Client, min(maxSlots, len(closePlayers)))
 	for i := range out {
 		out[i] = closePlayers[i].Client
 	}
@@ -247,7 +249,7 @@ func (c *Client) addSlot(client *Client) {
 	}
 }
 
-func (c *Client) recalculateSlots(clients map[*Client]bool) {
+func (c *Client) recalculateSlots(clients []*Client) {
 	players := c.getClosestPlayers(clients)
 	oldPlayers := make([]*Client, 0)
 	for _, slot := range c.slots {
@@ -272,6 +274,15 @@ func (c *Client) recalculateSlots(clients map[*Client]bool) {
 }
 
 func (c *Client) sendPlayerSlots() {
+	clients := make([]*Client, len(c.clients))
+	{
+		i := 0
+		for _, cl := range c.clients {
+			clients[i] = cl
+			i++
+		}
+	}
+	c.recalculateSlots(clients)
 	buf := c.buffers.Get().(*bytes.Buffer)
 	buf.Reset()
 	seq := c.getSeq()
