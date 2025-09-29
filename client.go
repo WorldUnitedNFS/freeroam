@@ -8,7 +8,6 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
-	"github.com/WorldUnitedNFS/freeroam/grid"
 	"github.com/WorldUnitedNFS/freeroam/math"
 	"net"
 	"runtime/debug"
@@ -82,9 +81,6 @@ type Client struct {
 	buffers         *sync.Pool
 	clients         map[string]*Client
 	posRecvTD       uint16
-	posX            float32
-	posY            float32
-	currentGridCell *grid.WorldGridCell
 }
 
 func (c *Client) registerUpdate() {
@@ -135,8 +131,6 @@ func (c *Client) processPacket(packet []byte) {
 		}
 	}()
 	c.LastPacket = time.Now()
-	c.posX = float32(binary.BigEndian.Uint16(packet[14:16])+350*5) / 5
-	c.posY = float32(int16(binary.BigEndian.Uint16(packet[12:14])-5000*5)) / 5
 
 	srvCounter := binary.BigEndian.Uint16(packet[8:10])
 	for _, slot := range c.slots {
@@ -199,9 +193,9 @@ func (c *Client) processPacket(packet []byte) {
 	}
 }
 
-func (c *Client) getClosestPlayers(clients map[*Client]bool) []*Client {
+func (c *Client) getClosestPlayers(clients []*Client) []*Client {
 	closePlayers := make([]clientPosSortInfo, 0)
-	for client := range clients {
+	for _, client := range clients {
 		if !client.IsReady() || client.Addr == c.Addr {
 			continue
 		}
@@ -247,7 +241,7 @@ func (c *Client) addSlot(client *Client) {
 	}
 }
 
-func (c *Client) recalculateSlots(clients map[*Client]bool) {
+func (c *Client) recalculateSlots(clients []*Client) {
 	players := c.getClosestPlayers(clients)
 	oldPlayers := make([]*Client, 0)
 	for _, slot := range c.slots {
@@ -272,6 +266,15 @@ func (c *Client) recalculateSlots(clients map[*Client]bool) {
 }
 
 func (c *Client) sendPlayerSlots() {
+	clients := make([]*Client, len(c.clients))
+	{
+		i := 0
+		for _, cl := range c.clients {
+			clients[i] = cl
+			i++
+		}
+	}
+	c.recalculateSlots(clients)
 	buf := c.buffers.Get().(*bytes.Buffer)
 	buf.Reset()
 	seq := c.getSeq()
