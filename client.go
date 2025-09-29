@@ -136,7 +136,7 @@ func (c *Client) processPacket(packet []byte) {
 	}()
 	c.LastPacket = time.Now()
 	c.posX = float32(binary.BigEndian.Uint16(packet[14:16])+350*5) / 5
-	c.posY = -float32(int16(binary.BigEndian.Uint16(packet[12:14])-5000*5)) / 5
+	c.posY = float32(int16(binary.BigEndian.Uint16(packet[12:14])-5000*5)) / 5
 
 	srvCounter := binary.BigEndian.Uint16(packet[8:10])
 	for _, slot := range c.slots {
