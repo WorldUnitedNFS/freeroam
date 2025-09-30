@@ -6,12 +6,13 @@ package freeroam
 
 import (
 	"bytes"
+	"cmp"
 	"encoding/binary"
 	"fmt"
 	"github.com/WorldUnitedNFS/freeroam/math"
 	"net"
 	"runtime/debug"
-	"sort"
+	"slices"
 	"sync"
 	"time"
 )
@@ -66,25 +67,27 @@ func newClient(opts ClientConfig) *Client {
 }
 
 type Client struct {
-	Addr             *net.UDPAddr
-	conn             *net.UDPConn
-	startTime        time.Time
-	initialTick      uint16
-	tickDiff         int16
-	seq              uint16
-	carPos           CarPosPacket
-	chanInfo         []byte
-	playerInfo       []byte
-	slots            []*slotInfo
-	LastPacket       time.Time
-	PersonaName      string
-	allowedPersonas  []int
-	ackMissedCount   int
-	updateID         uint8
-	buffers          *sync.Pool
-	clients          map[string]*Client
-	posRecvTD        uint16
-	visibilityRadius float64
+	Addr                   *net.UDPAddr
+	conn                   *net.UDPConn
+	startTime              time.Time
+	initialTick            uint16
+	tickDiff               int16
+	seq                    uint16
+	carPos                 CarPosPacket
+	chanInfo               []byte
+	playerInfo             []byte
+	slots                  []*slotInfo
+	LastPacket             time.Time
+	PersonaName            string
+	allowedPersonas        []int
+	ackMissedCount         int
+	updateID               uint8
+	buffers                *sync.Pool
+	clients                map[string]*Client
+	posRecvTD              uint16
+	visibilityRadius       float64
+	socialFilteringEnabled bool
+	channelName            string
 }
 
 func (c *Client) registerUpdate() {
@@ -159,6 +162,9 @@ func (c *Client) processPacket(packet []byte) {
 		switch ptype {
 		case 0x00:
 			c.chanInfo = innerData
+			channelNameField := innerData[2:]
+			c.channelName = string(channelNameField[:cStrLen(channelNameField)])
+			c.socialFilteringEnabled = innerData[1] == 1
 			updated = true
 		case 0x01:
 			if c.allowedPersonas != nil {
@@ -180,6 +186,7 @@ func (c *Client) processPacket(packet []byte) {
 			nameField := innerData[1:33]
 			c.PersonaName = string(nameField[:cStrLen(nameField)])
 			updated = true
+			//fmt.Printf("Player %s in channel %s; social filtering: %v\n", c.PersonaName, c.channelName, c.socialFilteringEnabled)
 		case 0x12:
 			if c.IsReady() && !bytes.Equal(innerData[2:], c.carPos.packet[2:]) {
 				updated = true
@@ -194,6 +201,13 @@ func (c *Client) processPacket(packet []byte) {
 		}
 		c.sendPlayerSlots()
 	}
+}
+
+func b2i(b bool) int {
+	if b {
+		return 1
+	}
+	return 0
 }
 
 func (c *Client) getClosestPlayers(clients []*Client) []*Client {
@@ -211,7 +225,25 @@ func (c *Client) getClosestPlayers(clients []*Client) []*Client {
 			Client: client,
 		})
 	}
-	sort.Sort(clientPosSort(closePlayers))
+
+	if c.socialFilteringEnabled {
+		slices.SortStableFunc(closePlayers, func(a, b clientPosSortInfo) int {
+			return cmp.Or(
+				-cmp.Compare(b2i(a.Client.channelName == c.channelName), b2i(b.Client.channelName == c.channelName)),
+				cmp.Compare(a.Length, b.Length))
+		})
+
+		//fmt.Printf("with social filtering for %s: ", c.PersonaName)
+		//for c := range closePlayers {
+		//	fmt.Printf("%s ", closePlayers[c].Client.PersonaName)
+		//}
+		//fmt.Println()
+	} else {
+		slices.SortStableFunc(closePlayers, func(a, b clientPosSortInfo) int {
+			return cmp.Compare(a.Length, b.Length)
+		})
+	}
+	//sort.Sort(clientPosSort(closePlayers))
 
 	maxSlots := len(c.slots)
 	out := make([]*Client, min(maxSlots, len(closePlayers)))

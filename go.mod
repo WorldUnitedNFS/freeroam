@@ -1,6 +1,6 @@
 module github.com/WorldUnitedNFS/freeroam
 
-go 1.12
+go 1.18
 
 require (
 	github.com/google/gops v0.3.8
