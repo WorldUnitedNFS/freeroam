@@ -54,13 +54,15 @@ func (i *Server) RunPacketRead() {
 		if len(data) == 58 && data[2] == 0x06 {
 			log.Printf("New client from %v", addr.String())
 			client := newClient(ClientConfig{
-				InitialTick:       binary.BigEndian.Uint16(data[52:54]),
-				Addr:              addr,
-				Conn:              i.listener,
-				Buffers:           i.buffers,
-				Clients:           i.Clients,
-				VisibilityRadius:  i.config.UDP.VisibilityRadius,
-				MaxVisiblePlayers: i.config.UDP.MaxVisiblePlayers,
+				InitialTick:        binary.BigEndian.Uint16(data[52:54]),
+				Addr:               addr,
+				Conn:               i.listener,
+				Buffers:            i.buffers,
+				Clients:            i.Clients,
+				VisibilityRadius:   i.config.UDP.VisibilityRadius,
+				MaxVisiblePlayers:  i.config.UDP.MaxVisiblePlayers,
+				PlayerSpawnDelayMs: i.config.UDP.PlayerSpawnDelayMs,
+				DisableRadiusSync:  i.config.UDP.DisableRadiusSync,
 			})
 			i.Clients[addr.String()] = client
 			client.replyHandshake()
@@ -81,6 +83,7 @@ func (i *Server) RunTimer() {
 		for k, client := range i.Clients {
 			if !client.Active() {
 				log.Printf("Removing inactive client %v", client.Addr.String())
+				client.Cleanup()
 				delete(i.Clients, k)
 			}
 		}
@@ -92,4 +95,26 @@ func (i *Server) RunTimer() {
 func (i *Server) readPacket() (*net.UDPAddr, []byte) {
 	recvlen, addr, _ := i.listener.ReadFromUDP(i.recvbuf)
 	return addr, i.recvbuf[:recvlen]
+}
+
+func (i *Server) SetPlayerSpawnDelayForAllClients(delayMs int) {
+	i.Lock()
+	defer i.Unlock()
+	
+	for _, client := range i.Clients {
+		client.SetPlayerSpawnDelay(delayMs)
+	}
+	
+	i.config.UDP.PlayerSpawnDelayMs = delayMs
+}
+
+func (i *Server) SetRadiusSyncForAllClients(enabled bool) {
+	i.Lock()
+	defer i.Unlock()
+	
+	for _, client := range i.Clients {
+		client.SetRadiusSync(enabled)
+	}
+	
+	i.config.UDP.DisableRadiusSync = !enabled
 }

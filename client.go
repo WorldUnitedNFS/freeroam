@@ -37,32 +37,47 @@ func (self clientPosSort) Less(i, j int) bool {
 }
 
 type ClientConfig struct {
-	InitialTick       uint16
-	Addr              *net.UDPAddr
-	Conn              *net.UDPConn
-	Buffers           *sync.Pool
-	Clients           map[string]*Client
-	AllowedPersonas   []int
-	VisibilityRadius  float64
-	MaxVisiblePlayers int
+	InitialTick          uint16
+	Addr                 *net.UDPAddr
+	Conn                 *net.UDPConn
+	Buffers              *sync.Pool
+	Clients              map[string]*Client
+	AllowedPersonas      []int
+	VisibilityRadius     float64
+	MaxVisiblePlayers    int
+	PlayerSpawnDelayMs   int
+	DisableRadiusSync    bool
 }
 
 func newClient(opts ClientConfig) *Client {
-	c := &Client{
-		Addr:             opts.Addr,
-		conn:             opts.Conn,
-		startTime:        time.Now(),
-		initialTick:      opts.InitialTick,
-		tickDiff:         int16(opts.InitialTick - getServerTick()),
-		seq:              0,
-		slots:            make([]*slotInfo, opts.MaxVisiblePlayers),
-		LastPacket:       time.Now(),
-		clients:          opts.Clients,
-		allowedPersonas:  opts.AllowedPersonas,
-		buffers:          opts.Buffers,
-		updateID:         1,
-		visibilityRadius: opts.VisibilityRadius,
+	spawnDelay := opts.PlayerSpawnDelayMs
+	if spawnDelay <= 0 {
+		spawnDelay = 200
 	}
+	
+	c := &Client{
+		Addr:                  opts.Addr,
+		conn:                  opts.Conn,
+		startTime:             time.Now(),
+		initialTick:           opts.InitialTick,
+		tickDiff:              int16(opts.InitialTick - getServerTick()),
+		seq:                   0,
+		slots:                 make([]*slotInfo, opts.MaxVisiblePlayers),
+		LastPacket:            time.Now(),
+		clients:               opts.Clients,
+		allowedPersonas:       opts.AllowedPersonas,
+		buffers:               opts.Buffers,
+		updateID:              1,
+		visibilityRadius:      opts.VisibilityRadius,
+		pendingPlayerQueue:    make([]*Client, 0),
+		playerSpawnDelayMs:    spawnDelay,
+		disableRadiusSync:     opts.DisableRadiusSync,
+		spawnProcessorRunning: false,
+		spawnProcessorStop:    make(chan bool, 1),
+	}
+	
+	go c.startSpawnProcessor()
+	
 	return c
 }
 
@@ -88,6 +103,12 @@ type Client struct {
 	visibilityRadius       float64
 	socialFilteringEnabled bool
 	channelName            string
+	pendingPlayerQueue     []*Client
+	playerSpawnDelayMs     int
+	disableRadiusSync      bool
+	spawnProcessorRunning  bool           // Indique si la goroutine de traitement est en cours
+	spawnProcessorStop     chan bool
+	pendingQueueMutex      sync.Mutex
 }
 
 func (c *Client) registerUpdate() {
@@ -95,6 +116,38 @@ func (c *Client) registerUpdate() {
 	if c.updateID == 0 {
 		c.updateID = 1
 	}
+}
+
+func (c *Client) SetPlayerSpawnDelay(delayMs int) {
+	if delayMs <= 0 {
+		delayMs = 200
+	}
+	c.playerSpawnDelayMs = delayMs
+	
+	c.stopSpawnProcessor()
+	go c.startSpawnProcessor()
+}
+
+func (c *Client) GetPendingPlayersCount() int {
+	c.pendingQueueMutex.Lock()
+	defer c.pendingQueueMutex.Unlock()
+	return len(c.pendingPlayerQueue)
+}
+
+func (c *Client) GetPlayerSpawnDelay() int {
+	return c.playerSpawnDelayMs
+}
+
+func (c *Client) IsRadiusSyncDisabled() bool {
+	return c.disableRadiusSync
+}
+
+func (c *Client) SetRadiusSync(enabled bool) {
+	c.disableRadiusSync = !enabled
+}
+
+func (c *Client) Cleanup() {
+	c.stopSpawnProcessor()
 }
 
 func getServerTick() uint16 {
@@ -217,9 +270,11 @@ func (c *Client) getClosestPlayers(clients []*Client) []*Client {
 			continue
 		}
 		distance := math.Distance(c.GetPos(), client.GetPos())
-		if distance > c.visibilityRadius {
+		
+		if !c.disableRadiusSync && distance > c.visibilityRadius {
 			continue
 		}
+		
 		closePlayers = append(closePlayers, clientPosSortInfo{
 			Length: int(distance),
 			Client: client,
@@ -281,6 +336,77 @@ func (c *Client) addSlot(client *Client) {
 	}
 }
 
+func (c *Client) addToPendingQueue(client *Client) {
+	c.pendingQueueMutex.Lock()
+	defer c.pendingQueueMutex.Unlock()
+	
+	for _, pendingClient := range c.pendingPlayerQueue {
+		if pendingClient == client {
+			return
+		}
+	}
+	c.pendingPlayerQueue = append(c.pendingPlayerQueue, client)
+}
+
+func (c *Client) removeFromPendingQueue(client *Client) {
+	c.pendingQueueMutex.Lock()
+	defer c.pendingQueueMutex.Unlock()
+	
+	for i, pendingClient := range c.pendingPlayerQueue {
+		if pendingClient == client {
+			c.pendingPlayerQueue = append(c.pendingPlayerQueue[:i], c.pendingPlayerQueue[i+1:]...)
+			break
+		}
+	}
+}
+
+func (c *Client) startSpawnProcessor() {
+	c.spawnProcessorRunning = true
+	ticker := time.NewTicker(time.Duration(c.playerSpawnDelayMs) * time.Millisecond)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-c.spawnProcessorStop:
+			c.spawnProcessorRunning = false
+			return
+		case <-ticker.C:
+			c.processNextPendingPlayer()
+		}
+	}
+}
+
+func (c *Client) stopSpawnProcessor() {
+	if c.spawnProcessorRunning {
+		c.spawnProcessorStop <- true
+	}
+}
+
+func (c *Client) processNextPendingPlayer() {
+	c.pendingQueueMutex.Lock()
+	defer c.pendingQueueMutex.Unlock()
+
+	if len(c.pendingPlayerQueue) == 0 {
+		return
+	}
+
+	freeSlotIndex := -1
+	for i, slot := range c.slots {
+		if slot == nil {
+			freeSlotIndex = i
+			break
+		}
+	}
+
+	if freeSlotIndex == -1 {
+		return
+	}
+
+	nextClient := c.pendingPlayerQueue[0]
+	c.pendingPlayerQueue = c.pendingPlayerQueue[1:]
+	c.addSlot(nextClient)
+}
+
 func (c *Client) recalculateSlots(clients []*Client) {
 	players := c.getClosestPlayers(clients)
 	oldPlayers := make([]*Client, 0)
@@ -291,16 +417,16 @@ func (c *Client) recalculateSlots(clients []*Client) {
 	}
 	diff := ArrayDiff(oldPlayers, players)
 
-	// Adding and removing slots at the same time causes some weird things to happen.
-	// As a temporary workaround, only one section of the diff is handled at a time.
-	// This allows the game to remove old players BEFORE swapping in new ones.
 	if len(diff.Removed) > 0 {
 		for _, removedClient := range diff.Removed {
 			c.removeSlot(removedClient)
+			c.removeFromPendingQueue(removedClient)
 		}
-	} else if len(diff.Added) > 0 {
+	}
+
+	if len(diff.Added) > 0 {
 		for _, addedClient := range diff.Added {
-			c.addSlot(addedClient)
+			c.addToPendingQueue(addedClient)
 		}
 	}
 }
